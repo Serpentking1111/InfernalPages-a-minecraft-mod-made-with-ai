@@ -1,0 +1,8 @@
+{
+  "type": "infernalpages:mould_shapeless",
+  "ingredients": [
+    "minecraft:goat_horn",
+    "infernalpages:mould_of_souls"
+  ],
+  "result": "infernalpages:calling_horn"
+}

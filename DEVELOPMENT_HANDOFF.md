@@ -1,0 +1,282 @@
+# Infernal Pages — Development Handoff
+
+This document is the complete technical handoff for the **Infernal Pages** Fabric mod (formerly
+"Permanent Death"). It is written so a fresh developer/AI can take over development without the
+original conversation context.
+
+**Project root:** the directory this file lives in.
+**Version:** 1.9.9 — Minecraft **1.21.11**, Yarn **1.21.11+build.6**, Fabric Loader **0.19.3**,
+Fabric API **0.141.6+1.21.11**, Java **21**, GeckoLib **5.4.5**.
+
+---
+
+## 1. How to build
+
+```bash
+chmod +x gradlew
+./gradlew remapJar     # produces build/libs/infernalpages-<version>.jar
+```
+
+**Requirements / gotchas discovered during development:**
+
+- **GeckoLib** is required at compile time and runtime. It is NOT pulled from a maven; it is a
+  local jar at `libs/geckolib-fabric-1.21.11-5.4.5.jar`, wired in `build.gradle` as
+  `modImplementation files("libs/...jar")`. It must be copied into `libs/` to compile, and into the
+  user's `mods/` folder to run.
+- **JDK 21 is required.** If the sandbox/host JDK disappears, reinstall:
+  `sudo apt-get install -y openjdk-21-jdk-headless`.
+- The full `./gradlew build` can OOM/remap-slow; `remapJar` is the reliable task.
+- Version is set in **two** places (keep in sync):
+  - `gradle.properties` → `mod_version=`
+  - `src/main/resources/fabric.mod.json` → `"name": "Infernal Pages X.Y.Z"`
+
+---
+
+## 2. Package layout (source)
+
+All code is under `src/main/java/net/infernalpages/`.
+
+| Path | Purpose |
+|---|---|
+| `InfernalPagesMod.java` | `ModInitializer`; wires registries, handlers, managers, commands. Holds `MOD_ID`, `CONFIG`, `BANS`, `BROKEN`. |
+| `InfernalPagesClient.java` | Client entrypoint (renderer registration). |
+| `ModConfig.java` | JSON config (`config/infernalpages/config.json`): explosion power, calamity base power, ritual-ingredient map. |
+| `ban/BanManager.java` | Persistent ban list (`infernalpages/banned_players.json`). Banish = permanent death. |
+| `contract/BrokenContracts.java` | Persistent set of severed pact ids (`infernalpages/broken_contracts.json`). |
+| `contract/ContractBreakHandler.java` | Purity-Seal-on-B-in-ritual → break pact, invalidate items, both lose 1 max HP. |
+| `death/KillHandler.java` | On-death banish logic for Scripture + Sealer of Fates (only these banish). |
+| `death/ContractProtectionHandler.java` | B can't harm A (nullifies damage + plays `contract_block` sound); broken swords deal no damage. |
+| `effect/ScriptureCalamity.java` | Escalating explosion sequence for Scripture kills. |
+| `health/HealthPenaltyManager.java` | Permanent max-health penalty (ritual cost). |
+| `item/*.java` | The items (see below). |
+| `entity/*.java` | The Mould of Souls entity + its goals + mode/ability enums. |
+| `recipe/MouldCraftingSerializer.java` | Custom crafting serializer (see §7). |
+| `registry/ModItems.java`, `ModEntities.java`, `ModComponents.java`, `ModSounds.java` | Registries. |
+| `rei/` | REI integration (ritual recipe display). |
+| `revive/ReviveChatHandler.java` | Chat-based charm actions (revive + unholy kill). |
+| `ritual/RitualHandler.java` | Candle ritual reward logic. |
+| `command/ModCommands.java` | `/revive` and `/setowner` admin commands. |
+| `util/EffectUtil.java`, `ItemUtil.java` | Helpers (lightning, etc.). |
+| `client/*.java` | GeckoLib renderer/model/render-state for the Mould of Souls. |
+
+### Items (`item/`)
+- `ScriptureItem` — permanent banish.
+- `RevivalCharmItem` — revive in chat; smash on hard block → Purity Seal.
+- `ContractItem` — two-player signing.
+- `UnholyCharmItem` — A kills B in chat.
+- `ContractSwordItem` — Sealer of Fates; smashable when broken → 3 Tainted Shards.
+- `PuritySealItem` — reset health; break pact.
+- `MouldOfSoulsItem` — summon guardian.
+- `TaintedRemainsItem` — the sword/hoe hybrid (nested `Shard` subclass).
+
+---
+
+## 3. The Contract system
+
+1. **Signing** (`ContractItem.use`): first signer = **A** (`CONTRACT_SIGNER`), second signer = **B**.
+   A unique `CONTRACT_ID` (UUID) ties all items of a pact together.
+2. **Rewards**: A gets an **Unholy Charm** (holder=A, target=B); B gets the **Sealer of Fates**
+   (owner=B, forbidden=A).
+3. **Breaking**: `ContractBreakHandler` — A right-clicks B (in a ritual) with a Purity Seal.
+   Both lose 1 max HP; the pact is recorded as broken and both items are invalidated.
+4. **Invalidation** is two-layered:
+   - Per-item `CONTRACT_BROKEN` boolean component.
+   - Global `BrokenContracts` registry (by `CONTRACT_ID`), so even items stashed in chests or held
+     by offline players are inert. This closed a chest-stash exploit.
+
+### Data components (`ModComponents`)
+`CONTRACT_SIGNER`, `CONTRACT_ID`, `CONTRACT_SIGNER_NAME`, `UNHOLY_OWNER`, `UNHOLY_OWNER_NAME`,
+`UNHOLY_TARGET`, `UNHOLY_TARGET_NAME`, `SWORD_OWNER`, `SWORD_OWNER_NAME`, `SWORD_FORBIDDEN`,
+`CONTRACT_BROKEN` (bool), `TAINTED_MODE` (string `"sword"`/`"hoe"`).
+
+### Admin commands (`/setowner`, `/revive`)
+- `/setowner <player>` (operator) sets the owner component on the held item (Contract maker,
+  Unholy Charm holder, or Sealer of Fates owner).
+- `/revive <player>` unbans a player.
+
+---
+
+## 4. The Mould of Souls entity
+
+**Files:** `entity/MouldOfSoulsEntity.java`, `entity/GuardMode.java`, `entity/GuardAbility.java`,
+and goals `MouldAbilityGoal`, `MouldTeleportGoal`, `MouldFlightGoal`, `MouldFollowOwnerGoal`,
+`MouldReturnHomeGoal`, `MouldReviveGoal`, `MouldWanderGoal`; plus `client/MouldGeoModel`,
+`client/MouldOfSoulsRenderer`, `client/MouldGeoRenderState`.
+
+### Modes (`GuardMode`)
+- **PASSIVE** — AI fully disabled; stands still, doesn't move/look; plays static.
+- **ACTIVE** — only engages enemies within **10 blocks**. When an enemy dies it **teleports home**
+  and deactivates (static). **Home = where the owner switched it to ACTIVE.**
+- **HUNT** — behaves like the original "on": attacks anything except owner, follows owner, wanders.
+
+The ACTIVE flow is a deterministic state machine in `MouldOfSoulsEntity.tick()`:
+```
+at home + no enemy  → dormant (static)
+enemy enters range  → wake, run to & kill enemy
+enemy dies          → TELEPORT straight home (onto solid ground)
+back home           → dormant again (static)
+```
+
+### Abilities (`GuardAbility`) — fed by right-clicking the guard with an item
+| Item fed | Ability | Texture | Effect |
+|---|---|---|---|
+| (none) | NONE | `soulbound_neut` | — |
+| Wind Charge | WIND | `soulbound_white` | shoots a wind charge (breeze-style) |
+| Heart of the Sea | GUARDIAN | `soulbound_blue` | guardian-style beam (magic damage) |
+| Fire Charge | FIRE | `soulbound_yellow` | shoots a fireball (ghast-style) |
+| Dirt | STRENGTH | `soulbound_brown` | +attack damage, +attack speed, +move speed |
+| Ender Pearl | TELEPORT | `soulbound_purple` | teleport to nearest enemy & strike |
+| Dragon Egg | DRAGON | `soulbound_purpleandblack` | flight + dragon fireballs |
+
+- **Right-click empty hand** cycles the mode (passive→active→hunt) and shows it on the action bar.
+  Feeding an ability also shows on the action bar. Empty-hand with an ability equipped **removes the
+  ability and returns the item**.
+- Ability + guarding state are synced via the **data tracker** so the client render matches.
+- **Death**: the mould drops its summon item + the equipped ability's item. Allied moulds (same
+  owner) don't fight each other; other players' moulds are enemies. A mould will pick up a dropped
+  mould item and resummon an ally with the same owner.
+
+### Animation (GeckoLib)
+- **`static`** (loop=hold_on_last_frame) plays when dormant. The dormant state is **synced to the
+  client** via a `DORMANT_DATA` tracked boolean so the static pose always matches the server.
+- **`running`** while chasing an enemy; **`walk`** while following/wandering; **`ability`** one-shot
+  while a special attack is fired; **`punch`** available.
+- Head-tracking is done in `MouldOfSoulsRenderer.adjustModelBonesForRender` (rotates the `head`
+  bone from the render state's `relativeHeadYaw`/`pitch`).
+- Model scaled 2x in the renderer to ~1.5 blocks tall.
+
+### GeckoLib resource layout (IMPORTANT)
+GeckoLib 5 only scans `assets/<ns>/geckolib/models/` and `assets/<ns>/geckolib/animations/`. The
+files are:
+- `assets/infernalpages/geckolib/models/soulmould.geo.json`
+- `assets/infernalpages/geckolib/animations/soulmould.animation.json`
+
+`MouldGeoModel` points at these with `GeckoLibResources.stripPrefixAndSuffix(...)` so the lookup
+key matches GeckoLib's baked cache key (`infernalpages:soulmould`). **Do not** move them back to
+`geo/entity/` or `animations/entity/` — that caused `Unable to find animation file` crashes.
+
+`MouldGeoRenderState` must override `addGeckolibData`/`hasGeckolibData`/`getDataMap` to use one
+consistent map (GeckoLib mixes a private map into vanilla render states; using a custom subclass
+requires this).
+
+---
+
+## 4b. The Calling Horn
+- Crafted **shapeless** with a **goat horn** + a **Mould of Souls** item.
+- Right-click summons **all of the user's soul moulds** to them (256-block range), teleporting each
+  mould near the player with portal/soul particles and a horn sound, setting their new home to the
+  player's position. 10s cooldown (reusable).
+- Uses a new shapeless recipe serializer (`infernalpages:mould_shapeless`).
+
+## 4b2. Tainted-reinforced armour (INACTIVE — smithing recipe removed 1.10.13)
+- The smithing reinforce recipe was **removed** because its static-initializer tag lookup crashed
+  world/datapack loading (`NoClassDefFoundError` / `Missing tag trimmable_armor`).
+- `ModComponents.TAINTED` and `TaintedArmorHandler` (the one-hit shield) are still present but
+  currently **inert** — no recipe applies the `TAINTED` component.
+- To re-enable later: add a recipe that adds the `TAINTED` component at runtime (not via a static
+  field initializer), then remove this note.
+
+## 4c. Soul Mould improvements (1.10.0)
+- **Punch animation**: the mould now plays the `punch` animation when it lands a melee attack
+  (triggered in `tryAttack`). Fixed the long-standing bug where the punch animation never played.
+- **Water buff**: `getBaseWaterMovementSpeedMultiplier()` returns `0.5` (vanilla is `0.8`), so moulds
+  swim noticeably faster through water.
+
+## 5. The Remains of a Tainted Past (sword/hoe weapon)
+
+**File:** `item/TaintedRemainsItem.java` (+ nested `Shard`).
+
+- **Obtaining:** smash a **broken** Sealer of Fates on a block tougher than stone → **3 Tainted
+  Shards**; craft the weapon (recipe in `data/infernalpages/recipe/tainted_remains.json`:
+  shards + string + stick + purity seal).
+- **Sword mode:** 13 attack damage, 1.8 attack speed. Right-click = **riptide-style launch** along
+  look direction (works in air & water), **1s cooldown** (20 ticks), damages durability.
+- **Hoe/sickle mode:** tills dirt/grass like a hoe. If **Farmers' Delight** is installed, right-click
+  a mature crop **reaps** it (collects drops + replants). Otherwise it's a plain hoe.
+- **Shift-right-click** toggles mode (sets `TAINTED_MODE` + `custom_model_data`).
+- **Cannot permanently kill players** — only the Scripture and Sealer of Fates banish.
+- **Model switching** uses the same proven pattern as the Contract: `minecraft:range_dispatch` on
+  `custom_model_data` (sword=0 → `tainted_remains_sword`, hoe=1 → `tainted_remains_hoe`).
+
+### Custom model gotcha (seen in dev)
+In Blockbench item models, every **face key** must be `"texture": "#0"` (a reference to the `"0"`
+texture slot) — NOT a texture path. If the face keys are accidentally replaced with a texture path,
+the model fails to load and renders as the purple/black missing-model cube.
+
+---
+
+## 6. Sounds
+
+- Custom sound `infernalpages:contract_block` (a bass hit) plays when a pact nullifies B's attack on A.
+- Defined in `assets/infernalpages/sounds.json` → `assets/infernalpages/sounds/contract_block.ogg`,
+  registered in `registry/ModSounds.java`.
+- Other effects use vanilla sound events (e.g. `SoundEvents.ITEM_TRIDENT_RIPTIDE_3`,
+  `BLOCK_CROP_BREAK`, `ENTITY_BREEZE_SHOOT`, `ENTITY_GHAST_SHOOT`, `ENTITY_GUARDIAN_ATTACK`,
+  `ENTITY_ENDER_DRAGON_GROWL`, `ENTITY_ENDERMAN_TELEPORT`, `BLOCK_GLASS_BREAK`).
+
+---
+
+## 7. Recipes & the custom serializer
+
+Many other mods in a large modpack override the vanilla `Ingredient` codec, breaking standard
+`{"item": "..."}` recipe JSON with `No key fabric:type`. To be immune, the mod uses a **custom recipe
+serializer** (`recipe/MouldCraftingSerializer`, registered as `infernalpages:mould_crafting`).
+
+Recipe files (in `data/infernalpages/recipe/`) use this type with a compact format:
+```json
+{
+  "type": "infernalpages:mould_crafting",
+  "pattern": [" AA", " BA", "CD "],
+  "keys": { "A": "infernalpages:tainted_shard", "B": "minecraft:string",
+            "C": "minecraft:stick", "D": "infernalpages:purity_seal" },
+  "result": "infernalpages:tainted_remains"
+}
+```
+The serializer reads pattern/keys/result directly and builds ingredients with `Ingredient.ofItem(...)`,
+bypassing the broken codec. It reuses the vanilla shaped-recipe **packet codec** so recipes sync to
+clients/REI.
+
+---
+
+## 8. Known issues / open items
+
+1. **ACTIVE-mode guard** has been iterated on heavily. The current design (teleport home on kill,
+   sync dormant to client, home = activation spot, horizontal-only "at home" check) is the intended
+   final behaviour. If it still misbehaves, add/check the `[Mould ACTIVE]` diagnostic log lines in
+   `tick()` (pos/home/target/dormant) to see the runtime state.
+2. **Farmers' Delight knife** is implemented as a self-contained "reap" of mature vanilla crops
+   (gated behind `FabricLoader.isModLoaded("farmersdelight")`). It does NOT integrate with FD
+   cutting boards (needs the FD jar to compile against).
+3. **REI recipe display** for custom crafting worked via the default plugin once items were
+   registered; if it ever doesn't show, it's usually a modpack recipe-codec conflict (see §7).
+4. `en_us.json.tmp` exists in `lang/` (leftover — safe to delete).
+5. The old `MouldEntityModel.java` / `MouldRenderState.java` / `MouldReturnHomeGoal.java` may be
+   unused remnants from earlier iterations — verify before relying on them.
+
+---
+
+## 9. Version history (release notes)
+
+- **1.8.x** — Foundation: Scripture, Ritual, Revival Charm, Contract, Unholy Charm, Sealer of Fates,
+  Purity Seal, Mould of Souls. Fixed GeckoLib resource path (files moved to `geckolib/`), render-state
+  data-map, strength-NPE on load. Added head-tracking, ability behaviours, guard modes, follow-owner,
+  revive-ally, item drops, action-bar messages, custom sound, contract invalidation, broken-sword
+  no-damage, `/setowner`, `/revive`.
+- **1.9.x** — Tainted Remains weapon (sword/hoe hybrid), Tainted Shards, smash mechanic, custom
+  recipe serializer, models/textures integration, mode-based model switching, sword stats
+  (13 dmg / 1.8 speed), no-permanent-kill, FD knife behaviour, and the final ACTIVE-mode guard fix
+  (teleport-home + synced dormant).
+- **1.10.0** — The Calling Horn (summons your moulds), shapeless recipe serializer, mould punch
+  animation fix, and mould water-movement buff.
+- **1.10.2** — Enchancement compatibility for Tainted Remains (string material) + swords tag.
+- **1.10.3** — Soul moulds ignore passive mobs and creative players.
+- **1.10.5** — Tainted-reinforced armour (smithing), Tainted one-hit shield with 15s cooldown.
+
+---
+
+## 10. Where to continue
+
+- Fix any remaining ACTIVE-mode guard edge cases (use the `[Mould ACTIVE]` logs).
+- Wire Farmers' Delight cutting-board integration (needs the FD jar).
+- Polish models/textures or add more items/abilities.
+- Keep `gradle.properties` `mod_version` and `fabric.mod.json` `"name"` in sync on every bump.

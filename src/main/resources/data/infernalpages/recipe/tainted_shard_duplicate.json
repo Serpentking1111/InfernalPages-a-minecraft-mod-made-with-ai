@@ -1,0 +1,9 @@
+{
+  "type": "infernalpages:mould_shapeless",
+  "ingredients": [
+    "infernalpages:tainted_shard",
+    "minecraft:gold_ingot"
+  ],
+  "result": "infernalpages:tainted_shard",
+  "count": 2
+}

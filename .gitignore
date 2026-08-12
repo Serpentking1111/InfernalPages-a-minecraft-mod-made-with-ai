@@ -1,0 +1,10 @@
+.gradle/
+build/
+*.iml
+.idea/
+run/
+
+# Compiled jars (except the required GeckoLib lib)
+releases/
+*.jar
+!libs/geckolib-fabric-1.21.11-5.4.5.jar

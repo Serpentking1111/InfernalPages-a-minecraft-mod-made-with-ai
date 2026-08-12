@@ -1,0 +1,15 @@
+{
+  "type": "infernalpages:mould_crafting",
+  "pattern": [
+    " A ",
+    "BCB",
+    "DBD"
+  ],
+  "keys": {
+    "A": "minecraft:skeleton_skull",
+    "B": "minecraft:netherite_ingot",
+    "C": "minecraft:amethyst_shard",
+    "D": "minecraft:piston"
+  },
+  "result": "infernalpages:mould_of_souls"
+}

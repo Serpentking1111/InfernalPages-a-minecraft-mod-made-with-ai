@@ -1,0 +1,15 @@
+{
+  "type": "infernalpages:mould_crafting",
+  "pattern": [
+    " AA",
+    " BA",
+    "CD "
+  ],
+  "keys": {
+    "A": "infernalpages:tainted_shard",
+    "B": "minecraft:string",
+    "C": "minecraft:stick",
+    "D": "infernalpages:purity_seal"
+  },
+  "result": "infernalpages:tainted_remains"
+}
