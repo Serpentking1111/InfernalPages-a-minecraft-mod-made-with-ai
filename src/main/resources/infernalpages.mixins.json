@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "net.infernalpages.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "minVersion": "0.8",
+  "client": [
+  ],
+  "mixins": [
+    "SharpeningDamageMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

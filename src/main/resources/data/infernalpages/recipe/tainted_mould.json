@@ -1,0 +1,12 @@
+{
+  "type": "infernalpages:mould_shapeless",
+  "ingredients": [
+    "infernalpages:mould_of_souls",
+    "infernalpages:tainted_shard",
+    "minecraft:netherite_ingot",
+    "minecraft:netherite_ingot",
+    "minecraft:netherite_ingot",
+    "minecraft:netherite_ingot"
+  ],
+  "result": "infernalpages:tainted_mould"
+}
