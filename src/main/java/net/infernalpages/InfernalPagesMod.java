@@ -55,10 +55,16 @@ public class InfernalPagesMod implements ModInitializer {
 		net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.RECIPE_SERIALIZER,
 				net.minecraft.util.Identifier.of(MOD_ID, "mould_shapeless"),
 				net.infernalpages.recipe.MouldShapelessCraftingSerializer.INSTANCE);
+		net.minecraft.registry.Registry.register(net.minecraft.registry.Registries.RECIPE_SERIALIZER,
+				net.minecraft.util.Identifier.of(MOD_ID, "reinforce_armor_smithing"),
+				net.infernalpages.recipe.ReinforceArmorSmithingRecipeSerializer.INSTANCE);
 		KillHandler.register();
 		ContractProtectionHandler.register();
 		net.infernalpages.contract.ContractBreakHandler.register();
 		net.infernalpages.entity.MouldPickupHandler.register();
+		net.infernalpages.entity.TaintedMouldPickupHandler.register();
+		net.infernalpages.item.SharpeningHandler.register();
+		net.infernalpages.item.ReinforceArmorHandler.register();
 		ScriptureCalamity.register();
 		net.infernalpages.effect.TaintedArmorHandler.register();
 		RitualHandler.register();

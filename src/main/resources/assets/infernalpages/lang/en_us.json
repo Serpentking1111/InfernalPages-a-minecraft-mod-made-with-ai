@@ -24,5 +24,10 @@
   "item.infernalpages.tainted_remains.tooltip": "Shift-right-click to swap between sword and hoe mode.",
   "item.infernalpages.tainted_remains.tainted_tooltip": "Tainted: blocks the next hit of damage, then recharges over 15 seconds.",
   "item.infernalpages.calling_horn": "The Calling Horn",
-  "item.infernalpages.calling_horn.tooltip": "Summons all your soul moulds to you."
+  "item.infernalpages.calling_horn.tooltip": "Summons all your soul moulds to you.",
+  "item.infernalpages.tainted_mould": "Tainted Mould",
+  "item.infernalpages.tainted_mould.tooltip": "Feed it an ore resource (coal, iron, gold, redstone, lapis, diamond, emerald, netherite) to send it mining.",
+  "entity.infernalpages.tainted_mould": "Tainted Mould",
+  "item.infernalpages.sharpener": "Sharpening Stone",
+  "item.infernalpages.sharpener.tooltip": "Right-click with a weapon in your other hand to sharpen it with a random effect. Use again to reroll."
 }

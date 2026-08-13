@@ -59,6 +59,12 @@ public final class ModItems {
 	/** The Calling Horn — summons all of the user's soul moulds to them. */
 	public static final Item CALLING_HORN = register("calling_horn", net.infernalpages.item.CallingHornItem::new);
 
+	/** The Tainted Mould — deploys a mining automaton. */
+	public static final Item TAINTED_MOULD = register("tainted_mould", net.infernalpages.item.TaintedMouldItem::new);
+
+	/** The Sharpening Stone — sharpens a weapon with a random effect for 3 experience levels. */
+	public static final Item SHARPENER = register("sharpener", net.infernalpages.item.SharpenerItem::new);
+
 	private ModItems() {
 	}
 
@@ -135,6 +141,8 @@ public final class ModItems {
 			entries.add(TAINTED_SHARD);
 			entries.add(TAINTED_REMAINS);
 			entries.add(CALLING_HORN);
+			entries.add(TAINTED_MOULD);
+			entries.add(SHARPENER);
 		});
 	}
 }

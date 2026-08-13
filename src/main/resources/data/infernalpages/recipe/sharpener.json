@@ -1,0 +1,13 @@
+{
+  "type": "infernalpages:mould_crafting",
+  "pattern": [
+    "AAA",
+    "BBB",
+    "   "
+  ],
+  "keys": {
+    "A": "infernalpages:tainted_shard",
+    "B": "#minecraft:slabs"
+  },
+  "result": "infernalpages:sharpener"
+}

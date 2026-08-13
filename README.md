@@ -4,7 +4,7 @@ A Fabric mod for **Minecraft 1.21.11** about **permanent death**, soul contracts
 guardian, and tainted gear. Built with **Yarn 1.21.11+build.6**, **Fabric Loader 0.19.3**,
 **Fabric API 0.141.6+1.21.11**, and **GeckoLib 5.4.5** for the animated guardian model.
 
-> Current version: **1.10.14** — see [`DEVELOPMENT_HANDOFF.md`](DEVELOPMENT_HANDOFF.md) for the full
+> Current version: **1.11.0** — see [`DEVELOPMENT_HANDOFF.md`](DEVELOPMENT_HANDOFF.md) for the full
 > architecture, file map, known issues, and how to continue development.
 
 ---

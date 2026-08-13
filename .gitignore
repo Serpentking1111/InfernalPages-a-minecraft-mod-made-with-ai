@@ -4,7 +4,10 @@ build/
 .idea/
 run/
 
-# Compiled jars (except the required GeckoLib lib)
-releases/
+# Compiled jars — commit only the releases/ folder
+releases/*.jar
+!releases/infernalpages-1.12.3.jar
+
+# Do not commit other jars (except the required GeckoLib lib)
 *.jar
 !libs/geckolib-fabric-1.21.11-5.4.5.jar

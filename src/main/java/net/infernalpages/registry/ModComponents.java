@@ -71,6 +71,10 @@ public final class ModComponents {
 	public static final ComponentType<Boolean> TAINTED = register(
 			"tainted", Codec.BOOL, PacketCodecs.BOOLEAN);
 
+	/** The current sharpening effect on a weapon (a {@code Sharpening} id), or null if unsharpened. */
+	public static final ComponentType<String> SHARPENING = register(
+			"sharpening", Codec.STRING, PacketCodecs.STRING);
+
 	private ModComponents() {
 	}
 

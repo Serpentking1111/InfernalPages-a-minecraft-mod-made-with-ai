@@ -10,6 +10,7 @@ import net.minecraft.registry.RegistryKeys;
 import net.minecraft.util.Identifier;
 import net.infernalpages.InfernalPagesMod;
 import net.infernalpages.entity.MouldOfSoulsEntity;
+import net.infernalpages.entity.TaintedMouldEntity;
 
 /**
  * Registers Infernal Pages' custom entities.
@@ -24,10 +25,20 @@ public final class ModEntities {
 					.maxTrackingRange(8)
 					.build(RegistryKey.of(RegistryKeys.ENTITY_TYPE, Identifier.of(InfernalPagesMod.MOD_ID, "mould_of_souls"))));
 
+	/** The Tainted Mould — a mining automaton (soul mould body, un-animated). */
+	public static final EntityType<TaintedMouldEntity> TAINTED_MOULD = Registry.register(
+			Registries.ENTITY_TYPE,
+			Identifier.of(InfernalPagesMod.MOD_ID, "tainted_mould"),
+			EntityType.Builder.<TaintedMouldEntity>create(TaintedMouldEntity::new, SpawnGroup.MISC)
+					.dimensions(0.9f, 1.5f)
+					.maxTrackingRange(8)
+					.build(RegistryKey.of(RegistryKeys.ENTITY_TYPE, Identifier.of(InfernalPagesMod.MOD_ID, "tainted_mould"))));
+
 	private ModEntities() {
 	}
 
 	public static void register() {
 		FabricDefaultAttributeRegistry.register(MOULD_OF_SOULS, MouldOfSoulsEntity.createAttributes());
+		FabricDefaultAttributeRegistry.register(TAINTED_MOULD, TaintedMouldEntity.createAttributes());
 	}
 }

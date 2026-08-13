@@ -16,12 +16,17 @@ import net.minecraft.recipe.RecipeSerializer;
 import net.minecraft.recipe.ShapedRecipe;
 import net.minecraft.recipe.book.CraftingRecipeCategory;
 import net.minecraft.registry.Registries;
+import net.minecraft.registry.RegistryOps;
+import net.minecraft.registry.RegistryEntryLookup;
+import net.minecraft.registry.entry.RegistryEntryList;
+import net.minecraft.registry.tag.TagKey;
 import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
@@ -70,10 +75,9 @@ public final class MouldCraftingSerializer implements RecipeSerializer<ShapedRec
 						if (charStr.length() != 1) {
 							return DataResult.error(() -> "key must be a single character: " + charStr);
 						}
-						String itemId = ops.getStringValue(entry.getSecond())
-								.result().orElseThrow(() -> new RuntimeException("key value must be an item id"));
-						Item item = Registries.ITEM.get(Identifier.of(itemId));
-						keys.put(charStr.charAt(0), Ingredient.ofItem(item));
+						String value = ops.getStringValue(entry.getSecond())
+								.result().orElseThrow(() -> new RuntimeException("key value must be an item id or tag"));
+						keys.put(charStr.charAt(0), resolveIngredient(ops, value));
 					}
 
 					// Read the result item id.
@@ -105,6 +109,39 @@ public final class MouldCraftingSerializer implements RecipeSerializer<ShapedRec
 				return Stream.of(ops.createString("pattern"), ops.createString("keys"), ops.createString("result"));
 			}
 		};
+	}
+
+	/**
+	 * Builds an {@link Ingredient} from a recipe-key value, which is either an item id
+	 * ({@code "mod:item"}) or a tag reference ({@code "#namespace:tag"}).
+	 *
+	 * <p>Tags must be resolved through the decode {@code ops}' entry lookup (a {@link RegistryOps})
+	 * so datapack tags like {@code #minecraft:slabs} are populated at load time. Resolving through the
+	 * static {@link Registries#ITEM} registry directly yields an empty ingredient, which silently makes
+	 * the recipe uncraftable.
+	 */
+	private static <T> Ingredient resolveIngredient(DynamicOps<T> ops, String value) {
+		if (value.startsWith("#")) {
+			TagKey<Item> tag = TagKey.of(net.minecraft.registry.RegistryKeys.ITEM,
+					Identifier.of(value.substring(1)));
+			// Prefer the registry entry lookup carried by the decode ops (datapack tags).
+			if (ops instanceof RegistryOps<?> registryOps) {
+				Optional<RegistryEntryLookup<Item>> lookup =
+						registryOps.getEntryLookup(net.minecraft.registry.RegistryKeys.ITEM);
+				if (lookup.isPresent()) {
+					Optional<RegistryEntryList.Named<Item>> list = lookup.get().getOptional(tag);
+					if (list.isPresent()) {
+						return Ingredient.ofTag(list.get());
+					}
+				}
+			}
+			// Fallback: resolve from the static item registry's (loaded) tags.
+			return Ingredient.ofItems(java.util.stream.StreamSupport.stream(
+					Registries.ITEM.iterateEntries(tag).spliterator(), false)
+					.map(itemEntry -> itemEntry.value()));
+		}
+		Item item = Registries.ITEM.get(Identifier.of(value));
+		return Ingredient.ofItem(item);
 	}
 
 	@Override

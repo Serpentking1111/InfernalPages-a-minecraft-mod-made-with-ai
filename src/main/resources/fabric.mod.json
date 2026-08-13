@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "infernalpages",
   "version": "${version}",
-  "name": "Infernal Pages 1.10.14",
+  "name": "Infernal Pages 1.12.3",
   "description": "The Scripture lets you permanently banish (ban) players you kill. Banishment can be undone by a candle ritual and a Revival Charm.",
   "authors": [
     "You"
@@ -22,6 +22,9 @@
       "net.infernalpages.InfernalPagesClient"
     ]
   },
+  "mixins": [
+    "infernalpages.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.19.3",
     "minecraft": "~1.21.11",

@@ -103,6 +103,10 @@ public class MouldOfSoulsEntity extends HostileEntity implements GeoEntity {
 		if (target instanceof MouldOfSoulsEntity otherMould && this.isSameOwner(otherMould)) {
 			return false;
 		}
+		// Never attack a Tainted Mould — it is an ally/worker, not an intruder.
+		if (target instanceof net.infernalpages.entity.TaintedMouldEntity) {
+			return false;
+		}
 		if (isPassiveMob(target)) {
 			return false;
 		}

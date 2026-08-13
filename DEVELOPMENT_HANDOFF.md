@@ -168,13 +168,18 @@ requires this).
   player's position. 10s cooldown (reusable).
 - Uses a new shapeless recipe serializer (`infernalpages:mould_shapeless`).
 
-## 4b2. Tainted-reinforced armour (INACTIVE — smithing recipe removed 1.10.13)
-- The smithing reinforce recipe was **removed** because its static-initializer tag lookup crashed
-  world/datapack loading (`NoClassDefFoundError` / `Missing tag trimmable_armor`).
-- `ModComponents.TAINTED` and `TaintedArmorHandler` (the one-hit shield) are still present but
-  currently **inert** — no recipe applies the `TAINTED` component.
-- To re-enable later: add a recipe that adds the `TAINTED` component at runtime (not via a static
-  field initializer), then remove this note.
+## 4b2. Tainted-reinforced armour (RE-ENABLED 1.12.1)
+- The old smithing reinforce recipe was removed in 1.10.13 because its static-initializer tag lookup
+  crashed (`NoClassDefFoundError` / `Missing tag trimmable_armor`).
+- Re-enabled in **1.12.1** via a runtime interaction (hold a **Tainted Shard** + an armour piece and
+  right-click) — still works as a convenience.
+- In **1.12.2** it is also a proper **smithing table recipe**: `recipe/ReinforceArmorSmithingRecipe`
+  (a custom `SmithingRecipe` + `ReinforceArmorSmithingRecipeSerializer`, registered as
+  `infernalpages:reinforce_armor_smithing`). Put any armour piece in the smithing **base** slot and a
+  Tainted Shard in the **addition** slot (no template); the output is that same armour with the
+  `TAINTED` component (one-hit shield via `TaintedArmorHandler`). A custom recipe is required because
+  the result must preserve whatever armour was used as the base — a fixed-result
+  `smithing_transform` cannot do that.
 
 ## 4c. Soul Mould improvements (1.10.0)
 - **Punch animation**: the mould now plays the `punch` animation when it lands a melee attack
@@ -202,6 +207,78 @@ requires this).
 In Blockbench item models, every **face key** must be `"texture": "#0"` (a reference to the `"0"`
 texture slot) — NOT a texture path. If the face keys are accidentally replaced with a texture path,
 the model fails to load and renders as the purple/black missing-model cube.
+
+---
+
+## 5b. The Tainted Mould (mining automaton) — 1.11.0
+
+**Files:** `entity/TaintedMouldEntity.java`, `entity/TaintedOreType.java`, `item/TaintedMouldItem.java`,
+`client/TaintedMouldGeoModel.java`, `client/TaintedMouldGeoRenderState.java`,
+`client/TaintedMouldRenderer.java`, recipe `data/infernalpages/recipe/tainted_mould.json`.
+
+- **Crafting (shapeless):** 1 `mould_of_souls` + 1 `tainted_shard` + 4 `netherite_ingot`
+  → 1 `tainted_mould`. Deploy by right-clicking a block; owned by the placer.
+- **Feed it a resource** (right-click) to send it mining. Mapping (see `TaintedOreType`):
+  | Feed item | Ore it mines | Item it collects (stack of 64) |
+  |---|---|---|
+  | Coal | Coal Ore / Deepslate Coal Ore | Coal |
+  | Iron Ingot | Iron Ore / Deepslate Iron Ore | Raw Iron |
+  | Gold Ingot | Gold Ore / Deepslate Gold Ore | Raw Gold |
+  | Redstone | Redstone Ore / Deepslate Redstone Ore | Redstone |
+  | Lapis Lazuli | Lapis Ore / Deepslate Lapis Ore | Lapis Lazuli |
+  | Diamond | Diamond Ore / Deepslate Diamond Ore | Diamond |
+  | Emerald | Emerald Ore / Deepslate Emerald Ore | Emerald |
+  | Netherite Ingot | Ancient Debris | Ancient Debris |
+- **The fed item counts as the first of the stack** — the mould only mines the remaining
+  `STACK_SIZE - 1` items (so it needs 63 more) before returning home.
+- **Behaviour:** prefers **exposed** ores (an air/passable neighbour); if none, falls back to any
+  target ore. It navigates to the ore and breaks it when in reach; if a solid non-ore block blocks
+  it, it **tunnels through** it. Only ore drops are collected — blocks broken while tunnelling drop
+  nothing. When it holds **64** of the result item it **teleports back to its owner** and deposits
+  the haul into their inventory (overflow dropped).
+- **Rendering (1.11.2):** uses the **custom mining-bot model** `geckolib/models/taintedmould.geo.json`
+  and its own **texture** `textures/entity/tainted_mould.png` (32×32, matching the model's texture
+  size). Animation file `geckolib/animations/taintedmould.animation.json` provides 5 named
+  animations wired in `TaintedMouldEntity.registerControllers`:
+  - `static` — idle pose (played & held when IDLE)
+  - `scan` — spinny-bit scan, looped while standing still searching for ore
+  - `run` — looped while navigating toward the ore
+  - `mine` — one-shot mining swing, played when an ore block is broken
+  - `teliport` — one-shot, played when the mould teleports back to its owner
+  Mode, mine and teleport flags are synced to the client via data tracker so the client plays the
+  right animation. Soul moulds will **not** attack it (see `MouldOfSoulsEntity.isEnemyOf`).
+- **Persistence:** owner UUID, mode, ore type, collected count and target ore pos are saved to NBT.
+- On death it drops the `tainted_mould` item so it can be redeployed.
+- **Shift-punch** (owner, sneaking) stops it: the mould and all collected materials are dropped on
+  the ground as item entities (see `TaintedMouldPickupHandler`).
+
+---
+
+## 5c. The Sharpening Stone (weapon sharpening) — 1.12.0
+
+**Files:** `item/Sharpening.java`, `item/SharpenerItem.java`, `item/SharpeningHandler.java`,
+`mixin/SharpeningDamageMixin.java`, recipe `data/infernalpages/recipe/sharpener.json`.
+
+- **Crafting (shaped):** rows `AAA` / `BBB` / empty, where `A` = Tainted Shard and `B` = any slab
+  (`#minecraft:slabs` — the custom shaped serializer now supports `#tag` key values).
+- **Use:** hold the Sharpening Stone (either hand) with a weapon in the other hand and right-click.
+  Costs **3 experience levels** and applies a **random sharpening**; using it again **rerolls** the
+  effect. Effects and weights:
+  | Sharpening | Effect | Weight |
+  |---|---|---|
+  | Sharp at Range | +1.5 blocks attack reach (`ENTITY_INTERACTION_RANGE`) | 12.5 |
+  | Sharp When Close | 1.5× damage when target within 1 block | 12.5 |
+  | Sharp With Speed | +1 damage per block/s moving | 12.5 |
+  | Sharp as the Wind | +0.2 attack speed | 12.5 |
+  | Perfectly Sharp | 2× attack damage | 5 |
+  | Blunt | weapon deals no damage | 10 |
+- **Static effects** (RANGE/WIND/PERFECT) are applied as item **attribute modifiers** and stripped
+  by modifier id on reroll. **Conditional effects** (CLOSE/SPEED/BLUNT) are applied at damage time in
+  `mixin/SharpeningDamageMixin` (modifies the incoming `float amount` in `LivingEntity#damage`).
+- Sharpening is stored in the `SHARPENING` data component and shown on the weapon tooltip
+  (client-side via `ItemTooltipCallback`).
+- **Note:** the effect weights sum to 65 and are treated as *relative weights* — an effect is always
+  rolled (rarer effects are less common). There is no "no effect" outcome.
 
 ---
 
@@ -271,6 +348,40 @@ clients/REI.
 - **1.10.2** — Enchancement compatibility for Tainted Remains (string material) + swords tag.
 - **1.10.3** — Soul moulds ignore passive mobs and creative players.
 - **1.10.5** — Tainted-reinforced armour (smithing), Tainted one-hit shield with 15s cooldown.
+- **1.10.15** — The Remains of a Tainted Past (both sword and hoe modes) now renders **2× bigger** when
+  held in a player's hand (first- and third-person, left & right hand) via a per-model `display`
+  transform that doubles the vanilla `item/handheld` scale. No texture/UI change — GUI, ground,
+  fixed and head contexts are untouched.
+- **1.10.16** — Raised the third-person right-hand translation to `[0, 14.5, 0.5]` (in-hand vertical lift) for both modes.
+- **1.10.17** — Applied Blockbench-finished hand positions to both modes: third-person right-hand
+  `[0, 9.75, -0.5]`, third-person left-hand `[0, 12, -0.75]`; first-person unchanged
+  (`[1.13, 3.2, 1.13]`), all scales still 2× (1.7 / 1.36).
+- **1.10.18** — Buffed the sword-mode riptide dash: `LAUNCH_POWER` increased **1.6 → 2.5**
+  (~56% faster boost). Cooldown, damage and hop unchanged.
+- **1.10.19** — Boosted the sword dash again: `LAUNCH_POWER` **2.5 → 3.5** (~2.2× the original speed).
+- **1.11.0** — New **Tainted Mould** mining entity (see below).
+- **1.11.1** — Expanded Tainted Mould ores: added gold, lapis, redstone, emerald and coal. The fed
+  item now counts as the first of the 64-stack (mould mines 63 more before returning). On return it
+  stops and waits for a new feed item.
+- **1.11.2** — Gave the Tainted Mould its own mining-bot model + texture and implemented the 5
+  animations (static/scan/run/mine/teliport) per the animation file.
+- **1.11.3** — Tainted Mould now always targets the **closest** matching ore (removed the exposed-ore
+  preference). Added a brief `SCAN_PAUSE_TICKS` (30) pause after each ore break so the **scan**
+  animation visibly plays before it moves on.
+- **1.11.4** — Shift-punching a Tainted Mould (owner, sneaking) **stops it**: it drops its own
+  deploy item plus all collected materials (full count of the ore result) on the ground, then is
+  removed. Handled in `entity/TaintedMouldPickupHandler.java`.
+- **1.12.0** — New **Sharpening Stone** mechanic (see below).
+- **1.12.1** — Fixed the sharpener crafting recipe (tags are now resolved through the recipe codec's
+  `RegistryOps` entry lookup instead of the static registry, so `#minecraft:slabs` resolves) and
+  **re-enabled Tainted-reinforced armour** via a right-click interaction (Tainted Shard + armour piece).
+- **1.12.2** — Made Tainted-reinforced armour a **real smithing table recipe**: a custom
+  `SmithingRecipe` (`ReinforceArmorSmithingRecipe`) accepts any armour piece as the **base** slot and
+  a Tainted Shard as the **addition** (no template), and outputs the same armour with the `TAINTED`
+  component applied. Serializer registered as `infernalpages:reinforce_armor_smithing`; the
+  right-click interaction from 1.12.1 is kept as a convenience.
+- **1.12.3** — Reinforced armour now shows a **tooltip** ("Reinforced with a Tainted Shard" /
+  "Blocks the next hit, then recharges over 15s") via the client `ItemTooltipCallback`.
 
 ---
 

@@ -38,7 +38,7 @@ import java.util.function.Consumer;
  */
 public class TaintedRemainsItem extends Item {
 	private static final int LAUNCH_COOLDOWN_TICKS = 20; // 1 second
-	private static final double LAUNCH_POWER = 1.6;
+	private static final double LAUNCH_POWER = 3.5;
 
 	public TaintedRemainsItem(Settings settings) {
 		super(settings);
