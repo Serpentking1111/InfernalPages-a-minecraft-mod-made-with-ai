@@ -382,6 +382,16 @@ clients/REI.
   right-click interaction from 1.12.1 is kept as a convenience.
 - **1.12.3** — Reinforced armour now shows a **tooltip** ("Reinforced with a Tainted Shard" /
   "Blocks the next hit, then recharges over 15s") via the client `ItemTooltipCallback`.
+- **1.12.4** — **Fixed the reinforced-armour shield never recharging.** The cooldown compared
+  `ServerWorld.getTimeOfDay()`, the day/night clock, which is frozen by the `advance_time` gamerule
+  (renamed from `doDaylightCycle` in 1.21.11) and rewritten by `/time set` — so on most worlds the
+  shield blocked exactly one hit and never came back. Now uses `ServerWorld.getTime()` (monotonic
+  world age) plus a `now >= last` guard against backwards clocks. Also **rebalanced** the cooldown
+  so the reduction applies to pieces *beyond the first*: one reinforced piece now gives the
+  documented 15s instead of 12s, for a 15/12/9/6s table at 1/2/3/4 pieces (extracted into
+  `cooldownTicks(int)`). Also fixed a **memory leak** — `LAST_BLOCKED` was never cleaned up on
+  logout or death and grew for the server's lifetime; recharged entries are now pruned every 64
+  blocks. Tooltip and README reworded, as both described the shield as one-use.
 
 ---
 
@@ -391,3 +401,21 @@ clients/REI.
 - Wire Farmers' Delight cutting-board integration (needs the FD jar).
 - Polish models/textures or add more items/abilities.
 - Keep `gradle.properties` `mod_version` and `fabric.mod.json` `"name"` in sync on every bump.
+
+---
+
+## 11. Versioning
+
+Versions are `1.MINOR.PATCH`:
+
+- **MINOR** (`1.11.x` → `1.12.0`) — a **major update**: a new mechanic, item, entity, or system.
+  Reset PATCH to 0.
+- **PATCH** (`1.12.3` → `1.12.4`) — a **minor update**: bug fixes, balance tweaks, tooltip/text
+  changes, refactors. No new feature.
+
+Four files must be updated together on every bump:
+
+1. `gradle.properties` → `mod_version`
+2. `src/main/resources/fabric.mod.json` → `"name": "Infernal Pages <version>"`
+3. `README.md` → the `Current version:` line near the top
+4. This file → a new bullet in the changelog above describing the change
