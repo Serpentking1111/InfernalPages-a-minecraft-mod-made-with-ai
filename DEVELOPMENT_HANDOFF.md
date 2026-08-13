@@ -457,7 +457,15 @@ clients/REI.
   - **Note (texture asset):** the updated `contract_sword.png` texture was not available in the
     working session, so the repo still carries the previous 3D-atlas texture. The new flat handheld
     model expects a clean single-sword sprite (as `tainted_remains_sword.png` is); commit the
-    updated `contract_sword.png` to make the in-hand look correct.
+    updated `contract_sword.png` to make the in-hand look correct. **Resolved in 1.13.2.**
+
+- **1.13.2** — **Added the updated item/entity textures (the 1.13.1 model change was shipped
+  without them).** The new `contract_sword.png` (a clean 32×32 single-sword sprite) replaces the old
+  3D-atlas texture, so the flat handheld model from 1.13.1 now renders correctly in hand. The new
+  `tainted_mould.png` was supplied at 16×16 but the mould's GeckoLib model is `texture_width/height:
+  32` with UVs up to ~19, so it was upscaled 2× (nearest-neighbour) to 32×32 to keep the pixel art
+  aligned — the mould **model** was left untouched (only its texture changed), per request. Pure
+  resource change, so this is a PATCH bump. `latest/` now points at 1.13.2.
 
 ---
 
