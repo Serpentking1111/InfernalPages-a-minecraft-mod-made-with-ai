@@ -7,6 +7,7 @@ run/
 # Compiled jars — commit only the releases/ folder
 releases/*.jar
 !releases/infernalpages-1.12.3.jar
+!releases/infernalpages-1.12.4.jar
 
 # Do not commit other jars (except the required GeckoLib lib)
 *.jar
