@@ -3,17 +3,17 @@
 This folder always contains the **most up-to-date build** of Infernal Pages. Nothing else lives
 here, so the download link never changes between versions.
 
-**Current version: 1.13.3**
+**Current version: 1.13.4**
 
 ## Download
 
-Click [`infernalpages-1.13.3.jar`](infernalpages-1.13.3.jar), then press the **Download raw file**
+Click [`infernalpages-1.13.4.jar`](infernalpages-1.13.4.jar), then press the **Download raw file**
 button (the ⤓ icon, top right of the file view).
 
 Direct link:
 
 ```
-https://github.com/Serpentking1111/InfernalPages-a-minecraft-mod-made-with-ai/raw/master/latest/infernalpages-1.13.3.jar
+https://github.com/Serpentking1111/InfernalPages-a-minecraft-mod-made-with-ai/raw/master/latest/infernalpages-1.13.4.jar
 ```
 
 ## Installing

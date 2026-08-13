@@ -475,6 +475,18 @@ clients/REI.
   now points `layer0` at `item/tainted_mould` (previously it reused `item/mould_of_souls`). Pure
   resource fix, so this is a PATCH bump. `latest/` now points at 1.13.3.
 
+- **1.13.4** — **Tainted Mould target/path detection is now much faster + refreshed contract sword
+  texture.** `findNearestOre()` used to sweep the whole 65×65×25 volume (~105k block reads) on every
+  target re-selection (which fires each time the mould consumes its target ore while mining a vein).
+  It now walks outward in shells of increasing radius and stops at the first shell that contains an
+  ore, returning the Euclidean-closest block in it — so selection is unchanged (still the nearest
+  ore) but the common case stops after a few hundred blocks instead of ~105k, and the mould "sees"
+  where to go and starts moving much sooner. `findVisibleTargetOre()` also early-outs once it finds
+  an ore face-adjacent to the target (the closest a distinct block can be) instead of finishing its
+  11×11×11 scan, keeping the per-tick detection cheap while standing in a vein. Also swapped in the
+  updated `contract_sword.png` (a new 32×32 sprite for the Sealer of Fates). Pure perf/AI +
+  resource change, no behaviour change, so this is a PATCH bump. `latest/` now points at 1.13.4.
+
 ---
 
 ## 10. Where to continue
