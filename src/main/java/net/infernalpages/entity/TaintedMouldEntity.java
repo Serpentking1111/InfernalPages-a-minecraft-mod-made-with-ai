@@ -19,6 +19,8 @@ import net.minecraft.util.ActionResult;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import net.infernalpages.registry.ModItems;
 import software.bernie.geckolib.animatable.GeoEntity;
@@ -33,9 +35,16 @@ import software.bernie.geckolib.animation.object.PlayState;
  * The Tainted Mould — a mining automaton forged from a Mould of Souls, a Tainted Shard and netherite.
  *
  * <p>Feed it an ore resource (iron, gold, diamond, netherite, lapis, redstone, emerald or coal)
- * and it will travel to the
- * nearest matching ore, mine it (preferring exposed ores and tunnelling through blocks to reach
- * buried ones), and collect only the ore's drops. Once it holds a full stack it teleports back to
+ * and it will travel to the nearest matching ore and collect only that ore's drops.
+ *
+ * <p>Its mining is deliberately constrained so it behaves like something physically digging rather
+ * than a remote block-deleter:
+ * <ul>
+ *   <li>it must have <b>line of sight</b> to an ore before it may break it;</li>
+ *   <li>it may only break blocks within <b>{@value #BREAK_RADIUS_BLOCKS} blocks</b> of itself;</li>
+ *   <li>if it cannot see its target it breaks precisely the blocks obstructing its view, and if the
+ *       target is out of range it tunnels along the straight line towards it.</li>
+ * </ul> Once it holds a full stack it teleports back to
  * its owner and deposits the haul. It is animated by the custom {@code taintedmould} model/animations
  * (static / scan / run / mine / teliport).
  */
@@ -46,10 +55,20 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 	private static final int SEARCH_HEIGHT = 12;
 	/** Number of result items that makes a "full stack" and triggers the return home. */
 	private static final int STACK_SIZE = 64;
-	/** The block-reach distance (blocks) at which the mould can break a block. */
-	private static final double REACH = 3.2;
+	/**
+	 * The block-reach distance (blocks) at which the mould can break a block. The mould will never
+	 * break anything further away than this from its own position — it has to walk or tunnel
+	 * closer first.
+	 */
+	private static final double BREAK_RADIUS = 5.0;
+	/** Integer form of {@link #BREAK_RADIUS}, used to bound block scans. */
+	private static final int BREAK_RADIUS_BLOCKS = (int) Math.ceil(BREAK_RADIUS);
+	/** Distance (blocks) between samples along the line-of-sight ray. */
+	private static final double SIGHT_STEP = 0.15;
 	/** Ticks the mould stands still scanning (playing the "scan" animation) after each ore break. */
 	private static final int SCAN_PAUSE_TICKS = 30;
+	/** Safety valve: forget the "can't get there" list once it grows past this many entries. */
+	private static final int MAX_SKIPPED_ORES = 128;
 
 	private enum Mode { IDLE, MINING }
 
@@ -70,6 +89,12 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 	private int mineAnimTimer;
 	private int teleportAnimTimer;
 	private java.util.UUID ownerUuid;
+	/**
+	 * Ores the mould has given up on because it could neither see them nor dig any closer. They
+	 * are excluded from target selection so it moves on to the next ore instead of jamming against
+	 * bedrock or a protected block forever. Cleared whenever it successfully mines something.
+	 */
+	private final java.util.Set<BlockPos> skippedOres = new java.util.HashSet<>();
 
 	public TaintedMouldEntity(EntityType<? extends PathAwareEntity> entityType, World world) {
 		super(entityType, world);
@@ -142,6 +167,7 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 			// only needs to mine the remaining (STACK_SIZE - 1) items before returning home.
 			this.collectedCount = 1;
 			this.targetOre = null;
+			this.skippedOres.clear();
 			this.mode = Mode.MINING;
 			this.searchCooldown = 0;
 			this.dataTracker.set(MODE_DATA, (byte) 1);
@@ -215,44 +241,82 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 		if (this.targetOre == null || !isTargetOre(this.targetOre)) {
 			this.reselectOre();
 			if (this.targetOre == null) {
-				this.notifyOwner("No " + this.oreType.displayName() + " found within "
-						+ SEARCH_RADIUS + " blocks.");
-				this.mode = Mode.IDLE;
-				this.dataTracker.set(MODE_DATA, (byte) 0);
-				return;
+				// Everything reachable has been tried and skipped: clear the skip list and give
+				// the remaining ores one more chance before reporting failure.
+				if (!this.skippedOres.isEmpty()) {
+					this.skippedOres.clear();
+					this.reselectOre();
+				}
+				if (this.targetOre == null) {
+					this.notifyOwner("No " + this.oreType.displayName() + " found within "
+							+ SEARCH_RADIUS + " blocks.");
+					this.mode = Mode.IDLE;
+					this.dataTracker.set(MODE_DATA, (byte) 0);
+					return;
+				}
 			}
 		}
 
-		// If the ore is in reach, break it and collect its drops.
-		if (canReach(this.targetOre)) {
-			this.breakOre(this.targetOre);
-			this.targetOre = null;
-			return;
-		}
+		// The mould must actually be able to SEE an ore before it may mine it, and it may only
+		// break blocks within BREAK_RADIUS of itself. Anything it cannot see, it digs towards.
 
-		// Ores generate in veins, so the blocks between us and the target are very often more of
-		// the same ore. Mine those properly (collecting their drops) instead of treating them as
-		// obstacles — findBlocker deliberately refuses to touch them, which previously left the
-		// mould tunnelling around its own vein and never picking up the ore it was set to.
-		BlockPos adjacentOre = findAdjacentTargetOre();
-		if (adjacentOre != null) {
-			this.breakOre(adjacentOre);
-			if (adjacentOre.equals(this.targetOre)) {
+		// 1. Ores generate in veins, so once we are inside one there are usually more target ore
+		//    blocks in range. Harvest any we can both reach and see, nearest to the target first.
+		BlockPos visibleOre = findVisibleTargetOre();
+		if (visibleOre != null) {
+			this.breakOre(visibleOre);
+			if (visibleOre.equals(this.targetOre)) {
 				this.targetOre = null;
 			}
 			return;
 		}
 
-		// Otherwise, if a solid block is in reach and lies between us and the ore, tunnel through it.
-		BlockPos blocker = findBlocker();
-		if (blocker != null) {
-			breakBlockNoDrops(blocker);
+		// 2. The target is in break range but hidden behind something. Chew through whatever is
+		//    obstructing the line of sight — that is exactly the block the mould "needs" to remove
+		//    in order to see the ore.
+		if (withinBreakRadius(this.targetOre)) {
+			BlockPos obstruction = findSightObstruction(this.targetOre);
+			if (obstruction != null) {
+				this.breakBlockNoDrops(obstruction);
+				return;
+			}
+			// In range, unobstructed, but findVisibleTargetOre rejected it (e.g. the ore is no
+			// longer there). Drop the target and pick another next tick.
+			this.targetOre = null;
 			return;
 		}
 
-		// Otherwise walk toward the ore.
-		this.getNavigation().startMovingTo(
-				this.targetOre.getX() + 0.5, this.targetOre.getY(), this.targetOre.getZ() + 0.5, 1.0);
+		// 3. The ore is out of break range. Walk towards it if a path exists, otherwise tunnel
+		//    along the straight line to it, which is what lets the mould reach fully buried ores.
+		if (this.tryMoveToward(this.targetOre)) {
+			return;
+		}
+		BlockPos digStep = findDigStepToward(this.targetOre);
+		if (digStep != null) {
+			this.breakBlockNoDrops(digStep);
+			return;
+		}
+
+		// 4. Cannot see it, cannot path to it, cannot dig towards it (bedrock, claim protection,
+		//    a block entity we refuse to destroy). Give up on this ore and try the next one.
+		if (this.skippedOres.size() < MAX_SKIPPED_ORES) {
+			this.skippedOres.add(this.targetOre);
+		} else {
+			this.skippedOres.clear();
+		}
+		this.targetOre = null;
+	}
+
+	/**
+	 * Starts (or continues) navigation towards {@code pos}. Returns true if the mould has a usable
+	 * path, false if it is walled in and needs to dig instead.
+	 */
+	private boolean tryMoveToward(BlockPos pos) {
+		if (!this.getNavigation().isIdle()) {
+			return true; // already walking somewhere
+		}
+		return this.getNavigation().startMovingTo(
+				pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 1.0);
 	}
 
 	/** Picks the closest matching ore, regardless of whether it is exposed. */
@@ -278,6 +342,9 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 					if (!this.oreType.isOre(state)) {
 						continue;
 					}
+					if (this.skippedOres.contains(mutable)) {
+						continue; // already proved unreachable
+					}
 					double d = squaredDistanceToCenter(mutable);
 					if (d < bestD) {
 						bestD = d;
@@ -289,19 +356,165 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 		return best;
 	}
 
-	/** True if the mould can break the block at {@code pos} from its current position. */
-	private boolean canReach(BlockPos pos) {
+	/**
+	 * True if {@code pos} is inside the mould's 5-block break radius. This is a hard limit: the
+	 * mould may never break a block further away than this, so distant ores have to be walked or
+	 * tunnelled to first.
+	 */
+	private boolean withinBreakRadius(BlockPos pos) {
 		double dx = this.getX() - (pos.getX() + 0.5);
-		double dy = (this.getY() + 0.5) - (pos.getY() + 0.5);
+		double dy = this.eyeY() - (pos.getY() + 0.5);
 		double dz = this.getZ() - (pos.getZ() + 0.5);
-		return dx * dx + dy * dy + dz * dz <= REACH * REACH;
+		return dx * dx + dy * dy + dz * dz <= BREAK_RADIUS * BREAK_RADIUS;
+	}
+
+	/** The height the mould "looks" from when testing line of sight. */
+	private double eyeY() {
+		return this.getY() + this.getStandingEyeHeight();
+	}
+
+	/** The point the mould looks from. */
+	private Vec3d sightOrigin() {
+		return new Vec3d(this.getX(), this.eyeY(), this.getZ());
+	}
+
+	/**
+	 * True if the mould has clear line of sight to the block at {@code pos} — that is, the straight
+	 * line from its eye to the block's centre passes through nothing but air, fluids and other
+	 * non-occluding blocks. The target block itself does not count as blocking its own view.
+	 */
+	private boolean hasLineOfSight(BlockPos pos) {
+		return findSightObstruction(pos) == null && isSightClearOfSolids(pos);
+	}
+
+	/**
+	 * Walks the ray from the mould's eye to the centre of {@code pos} and returns the first
+	 * <em>breakable</em> block obscuring the view, or null if the view is clear (or the only thing
+	 * in the way is something the mould is not allowed to break).
+	 *
+	 * <p>This is what powers "if it can't see the ore, break the blocks it needs to": the returned
+	 * position is precisely the next block to remove to open up the sightline.
+	 */
+	private BlockPos findSightObstruction(BlockPos pos) {
+		World world = this.getEntityWorld();
+		Vec3d from = sightOrigin();
+		Vec3d to = new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+		Vec3d delta = to.subtract(from);
+		double length = delta.length();
+		if (length < 1.0E-4) {
+			return null;
+		}
+		Vec3d step = delta.multiply(SIGHT_STEP / length);
+		int steps = MathHelper.ceil(length / SIGHT_STEP);
+		BlockPos.Mutable mutable = new BlockPos.Mutable();
+		BlockPos last = null;
+		for (int i = 1; i < steps; i++) {
+			double x = from.x + step.x * i;
+			double y = from.y + step.y * i;
+			double z = from.z + step.z * i;
+			mutable.set(MathHelper.floor(x), MathHelper.floor(y), MathHelper.floor(z));
+			if (mutable.equals(pos) || mutable.equals(last)) {
+				continue;
+			}
+			last = mutable.toImmutable();
+			BlockState state = world.getBlockState(mutable);
+			if (!blocksSight(state, mutable)) {
+				continue;
+			}
+			// Something is in the way. Only report it if we are actually allowed to remove it, and
+			// only if it is close enough to break.
+			BlockPos hit = mutable.toImmutable();
+			if (isBreakable(state, hit) && withinBreakRadius(hit)) {
+				return hit;
+			}
+			return null;
+		}
+		return null;
+	}
+
+	/**
+	 * True if nothing unbreakable stands between the mould and {@code pos}. Used together with
+	 * {@link #findSightObstruction} so that "no breakable obstruction" is not mistaken for "clear
+	 * view" when the obstruction is bedrock.
+	 */
+	private boolean isSightClearOfSolids(BlockPos pos) {
+		World world = this.getEntityWorld();
+		Vec3d from = sightOrigin();
+		Vec3d to = new Vec3d(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+		Vec3d delta = to.subtract(from);
+		double length = delta.length();
+		if (length < 1.0E-4) {
+			return true;
+		}
+		Vec3d step = delta.multiply(SIGHT_STEP / length);
+		int steps = MathHelper.ceil(length / SIGHT_STEP);
+		BlockPos.Mutable mutable = new BlockPos.Mutable();
+		for (int i = 1; i < steps; i++) {
+			mutable.set(MathHelper.floor(from.x + step.x * i),
+					MathHelper.floor(from.y + step.y * i),
+					MathHelper.floor(from.z + step.z * i));
+			if (mutable.equals(pos)) {
+				continue;
+			}
+			if (blocksSight(world.getBlockState(mutable), mutable)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** True if this block state would hide an ore behind it. */
+	private boolean blocksSight(BlockState state, BlockPos pos) {
+		return !state.isAir() && state.isOpaqueFullCube();
+	}
+
+	/**
+	 * The next block to break in order to tunnel towards {@code target}. Steps along the straight
+	 * line to the ore and returns the first breakable block inside the break radius, so the mould
+	 * digs a corridor straight at buried ores instead of wandering around them.
+	 */
+	private BlockPos findDigStepToward(BlockPos target) {
+		World world = this.getEntityWorld();
+		Vec3d from = sightOrigin();
+		Vec3d to = new Vec3d(target.getX() + 0.5, target.getY() + 0.5, target.getZ() + 0.5);
+		Vec3d delta = to.subtract(from);
+		double length = delta.length();
+		if (length < 1.0E-4) {
+			return null;
+		}
+		Vec3d step = delta.multiply(SIGHT_STEP / length);
+		int steps = MathHelper.ceil(length / SIGHT_STEP);
+		BlockPos.Mutable mutable = new BlockPos.Mutable();
+		BlockPos last = null;
+		for (int i = 1; i < steps; i++) {
+			mutable.set(MathHelper.floor(from.x + step.x * i),
+					MathHelper.floor(from.y + step.y * i),
+					MathHelper.floor(from.z + step.z * i));
+			if (mutable.equals(last)) {
+				continue;
+			}
+			last = mutable.toImmutable();
+			BlockPos candidate = mutable.toImmutable();
+			if (!withinBreakRadius(candidate)) {
+				return null; // reached the edge of our reach without finding anything to dig
+			}
+			BlockState state = world.getBlockState(candidate);
+			if (state.isAir() || !state.getFluidState().isEmpty()) {
+				continue;
+			}
+			if (!isBreakable(state, candidate)) {
+				return null; // bedrock or a protected block bars this route
+			}
+			return candidate;
+		}
+		return null;
 	}
 
 	/**
 	 * Finds a target-ore block within reach, nearest to the current ore target. Used so the mould
 	 * harvests the rest of a vein it is standing in rather than tunnelling past it.
 	 */
-	private BlockPos findAdjacentTargetOre() {
+	private BlockPos findVisibleTargetOre() {
 		if (this.oreType == null) {
 			return null;
 		}
@@ -310,53 +523,23 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 		BlockPos.Mutable mutable = new BlockPos.Mutable();
 		BlockPos best = null;
 		double bestD = Double.MAX_VALUE;
-		for (int dx = -2; dx <= 2; dx++) {
-			for (int dy = -2; dy <= 2; dy++) {
-				for (int dz = -2; dz <= 2; dz++) {
+		for (int dx = -BREAK_RADIUS_BLOCKS; dx <= BREAK_RADIUS_BLOCKS; dx++) {
+			for (int dy = -BREAK_RADIUS_BLOCKS; dy <= BREAK_RADIUS_BLOCKS; dy++) {
+				for (int dz = -BREAK_RADIUS_BLOCKS; dz <= BREAK_RADIUS_BLOCKS; dz++) {
 					mutable.set(mouldPos.getX() + dx, mouldPos.getY() + dy, mouldPos.getZ() + dz);
-					if (!canReach(mutable) || !this.oreType.isOre(world.getBlockState(mutable))) {
+					if (!withinBreakRadius(mutable) || !this.oreType.isOre(world.getBlockState(mutable))) {
 						continue;
 					}
 					double d = squaredDistanceToOre(mutable);
-					if (d < bestD) {
-						bestD = d;
-						best = mutable.toImmutable();
-					}
-				}
-			}
-		}
-		return best;
-	}
-
-	/** Finds a solid, breakable, non-ore block within reach that is nearest the current ore target. */
-	private BlockPos findBlocker() {
-		if (this.targetOre == null) {
-			return null;
-		}
-		World world = this.getEntityWorld();
-		BlockPos mouldPos = this.getBlockPos();
-		BlockPos.Mutable mutable = new BlockPos.Mutable();
-		BlockPos best = null;
-		double bestD = Double.MAX_VALUE;
-		for (int dx = -1; dx <= 1; dx++) {
-			for (int dy = -1; dy <= 1; dy++) {
-				for (int dz = -1; dz <= 1; dz++) {
-					if (dx == 0 && dy == 0 && dz == 0) {
+					if (d >= bestD) {
 						continue;
 					}
-					mutable.set(mouldPos.getX() + dx, mouldPos.getY() + dy, mouldPos.getZ() + dz);
-					if (!canReach(mutable)) {
+					// Line of sight is the expensive test, so it goes last.
+					if (!hasLineOfSight(mutable)) {
 						continue;
 					}
-					BlockState state = world.getBlockState(mutable);
-					if (state.isAir() || !isBreakable(state, mutable) || (this.oreType != null && this.oreType.isOre(state))) {
-						continue;
-					}
-					double d = squaredDistanceToOre(mutable);
-					if (d < bestD) {
-						bestD = d;
-						best = mutable.toImmutable();
-					}
+					bestD = d;
+					best = mutable.toImmutable();
 				}
 			}
 		}
@@ -393,6 +576,9 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 				this.addCollected(drop);
 			}
 		}
+		// Progress was made, so previously unreachable ores may now be reachable through the hole
+		// we just opened. Give them all another chance.
+		this.skippedOres.clear();
 		// Play the mining swing animation once, then pause to scan before picking the next ore.
 		this.mineAnimTimer = 6;
 		this.dataTracker.set(MINE_DATA, (byte) 1);

@@ -231,10 +231,20 @@ the model fails to load and renders as the purple/black missing-model cube.
   | Netherite Ingot | Ancient Debris | Ancient Debris |
 - **The fed item counts as the first of the stack** — the mould only mines the remaining
   `STACK_SIZE - 1` items (so it needs 63 more) before returning home.
-- **Behaviour:** prefers **exposed** ores (an air/passable neighbour); if none, falls back to any
-  target ore. It navigates to the ore and breaks it when in reach; if a solid non-ore block blocks
-  it, it **tunnels through** it. Only ore drops are collected — blocks broken while tunnelling drop
-  nothing. When it holds **64** of the result item it **teleports back to its owner** and deposits
+- **Behaviour (rewritten in 1.12.6):** the mould is now constrained to act like a physical digger.
+  - **Line of sight is required to mine.** `hasLineOfSight` steps a ray (`SIGHT_STEP = 0.15`) from
+    the mould's eye to the block centre; any opaque full cube in between hides the ore.
+  - **5-block break radius.** `BREAK_RADIUS = 5.0` is a hard cap — `withinBreakRadius` gates every
+    break, so distant ores must be walked/tunnelled to first.
+  - **If it can't see the target it digs to see it.** `findSightObstruction` returns exactly the
+    block obscuring the sightline and that block is broken.
+  - **If the target is out of range it tunnels towards it.** It tries pathfinding first; when
+    walled in, `findDigStepToward` carves a corridor along the straight line to the ore.
+  - **Give-up list.** An ore that can be neither seen, pathed to nor dug towards (bedrock, a
+    protected block, a block entity) goes into `skippedOres` so the mould moves to the next ore
+    instead of jamming. Cleared on every successful break, on feeding, and when everything has
+    been skipped (one retry before reporting "no ore found").
+  Only ore drops are collected — blocks broken while tunnelling drop nothing. When it holds **64** of the result item it **teleports back to its owner** and deposits
   the haul into their inventory (overflow dropped).
 - **Rendering (1.11.2):** uses the **custom mining-bot model** `geckolib/models/taintedmould.geo.json`
   and its own **texture** `textures/entity/tainted_mould.png` (32×32, matching the model's texture
@@ -404,6 +414,20 @@ clients/REI.
   **block entity**, so tunnelling no longer destroys chests, shulker boxes, spawners or furnaces
   and their contents. (4) The idle message listed only 3 of the 8 accepted items; it is now
   generated from `TaintedOreType` via `feedItemList()` so it cannot drift.
+- **1.12.6** — **Tainted Mould line-of-sight mining.** The mould now has to actually *see* an ore
+  before it can mine it, and can only break blocks within **5 blocks** of itself.
+  - `hasLineOfSight(BlockPos)` ray-marches from the mould's eye to the block centre in
+    `SIGHT_STEP = 0.15` increments; any opaque full cube along the way blocks the view. Ore
+    selection (`findVisibleTargetOre`, which replaces `findAdjacentTargetOre`) now requires both
+    line of sight and range, so the mould can no longer reach through solid rock to delete ore.
+  - `withinBreakRadius` replaces the old `canReach`/`REACH = 3.2` check and gates **every** break.
+  - `findSightObstruction` returns the exact block interrupting the sightline; that block is what
+    gets broken, so "if it can't see the ore it breaks the blocks it needs to" is literal.
+  - `findDigStepToward` tunnels along the straight line to an out-of-range target when
+    pathfinding fails, so buried ores are still reachable.
+  - `skippedOres` records ores it can neither see, path to nor dig towards, so it moves on
+    instead of jamming; the list is cleared on every successful break and on feeding.
+  - Removed the now-unused `findBlocker()`.
 
 ---
 
