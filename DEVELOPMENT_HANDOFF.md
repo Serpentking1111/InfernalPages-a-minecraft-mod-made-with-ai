@@ -447,6 +447,18 @@ clients/REI.
     rule now comes first and the un-ignore rules follow it, matching `releases/*.jar` and
     `latest/*.jar` by pattern so new versions no longer need per-file entries.
 
+- **1.13.1** — **Contract Sword now renders like the Tainted Sword in hand.** Copied the Tainted
+  Remains sword model's setup onto `contract_sword.json`: it is now a `minecraft:item/handheld`
+  model whose `display` transform makes it render **larger and moved in hand** (third-person scale
+  1.7, first-person 1.36, with the same translations/rotations as `tainted_remains_sword`), exactly
+  matching how the Tainted Sword looks when held. The model points `layer0` at
+  `item/contract_sword`, so the (updated) contract sword texture is the one shown. No code change —
+  purely a resource/model tweak, so this is a PATCH bump.
+  - **Note (texture asset):** the updated `contract_sword.png` texture was not available in the
+    working session, so the repo still carries the previous 3D-atlas texture. The new flat handheld
+    model expects a clean single-sword sprite (as `tainted_remains_sword.png` is); commit the
+    updated `contract_sword.png` to make the in-hand look correct.
+
 ---
 
 ## 10. Where to continue
