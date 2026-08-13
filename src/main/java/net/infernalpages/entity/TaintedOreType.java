@@ -19,6 +19,8 @@ import java.util.Set;
 public enum TaintedOreType {
 	IRON("Raw Iron", Items.IRON_INGOT, Items.RAW_IRON,
 			Set.of(Blocks.IRON_ORE, Blocks.DEEPSLATE_IRON_ORE)),
+	COPPER("Raw Copper", Items.COPPER_INGOT, Items.RAW_COPPER,
+			Set.of(Blocks.COPPER_ORE, Blocks.DEEPSLATE_COPPER_ORE)),
 	GOLD("Raw Gold", Items.GOLD_INGOT, Items.RAW_GOLD,
 			Set.of(Blocks.GOLD_ORE, Blocks.DEEPSLATE_GOLD_ORE)),
 	DIAMOND("Diamond", Items.DIAMOND, Items.DIAMOND,

@@ -4,13 +4,15 @@ build/
 .idea/
 run/
 
-# Compiled jars — commit only the releases/ folder
-releases/*.jar
-!releases/infernalpages-1.12.3.jar
-!releases/infernalpages-1.12.4.jar
-!releases/infernalpages-1.12.5.jar
-!releases/infernalpages-1.12.6.jar
-
-# Do not commit other jars (except the required GeckoLib lib)
+# Do not commit jars by default.
 *.jar
+
+# ...except the required GeckoLib lib, every published release, and the
+# always-current copy in latest/.
+#
+# NOTE: order matters. These un-ignore rules must come AFTER the blanket
+# "*.jar" above, otherwise it overrides them and committing a release jar
+# needs "git add -f". Keep new release folders below this line.
 !libs/geckolib-fabric-1.21.11-5.4.5.jar
+!releases/*.jar
+!latest/*.jar

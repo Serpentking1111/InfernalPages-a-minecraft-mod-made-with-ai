@@ -4,8 +4,16 @@ A Fabric mod for **Minecraft 1.21.11** about **permanent death**, soul contracts
 guardian, and tainted gear. Built with **Yarn 1.21.11+build.6**, **Fabric Loader 0.19.3**,
 **Fabric API 0.141.6+1.21.11**, and **GeckoLib 5.4.5** for the animated guardian model.
 
-> Current version: **1.12.6** — see [`DEVELOPMENT_HANDOFF.md`](DEVELOPMENT_HANDOFF.md) for the full
+> Current version: **1.13.0** — see [`DEVELOPMENT_HANDOFF.md`](DEVELOPMENT_HANDOFF.md) for the full
 > architecture, file map, known issues, and how to continue development.
+
+## Download
+
+**➡ [Get the latest build](latest/)** — the [`latest/`](latest) folder always holds the current
+release jar, so the link never goes out of date. Older builds are kept in
+[`releases/`](releases).
+
+Requires **Fabric API 0.141.6+** and **GeckoLib 5.4.5+** installed separately; neither is bundled.
 
 ---
 
@@ -90,10 +98,13 @@ guardian, and tainted gear. Built with **Yarn 1.21.11+build.6**, **Fabric Loader
   Ingots**. Right-click a block to deploy it.
 - **Feed it an ore resource** to send it mining; it finds and breaks the nearest matching ore and
   collects only that ore's drops (blocks it breaks while tunnelling are not picked up).
-  - Coal → Coal, Iron Ingot → Raw Iron, Gold Ingot → Raw Gold, Redstone → Redstone,
-    Lapis Lazuli → Lapis Lazuli, Diamond → Diamond, Emerald → Emerald, Netherite Ingot → Ancient Debris.
-- It **prefers exposed ores** and will tunnel through blocks to reach buried ones; if it can't safely
-  reach a target it picks a new one.
+  - Coal → Coal, Copper Ingot → Raw Copper, Iron Ingot → Raw Iron, Gold Ingot → Raw Gold,
+    Redstone → Redstone, Lapis Lazuli → Lapis Lazuli, Diamond → Diamond, Emerald → Emerald,
+    Netherite Ingot → Ancient Debris.
+- It must have **line of sight** to an ore before it can mine it, and can only break blocks within
+  **5 blocks** of itself. If it can't see its target it breaks the blocks obstructing its view, and
+  if the target is out of range it tunnels towards it. If it can't safely reach a target at all it
+  picks a new one.
 - Once it holds a **full stack (64)** of the item it was sent for, it **teleports back to its owner**
   and deposits the haul. The fed item counts as the first of the stack, so it only mines 63 more.
 - After returning it **stops and waits** for a new item.

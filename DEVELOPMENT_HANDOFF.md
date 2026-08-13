@@ -223,6 +223,7 @@ the model fails to load and renders as the purple/black missing-model cube.
   |---|---|---|
   | Coal | Coal Ore / Deepslate Coal Ore | Coal |
   | Iron Ingot | Iron Ore / Deepslate Iron Ore | Raw Iron |
+  | Copper Ingot | Copper Ore / Deepslate Copper Ore | Raw Copper |
   | Gold Ingot | Gold Ore / Deepslate Gold Ore | Raw Gold |
   | Redstone | Redstone Ore / Deepslate Redstone Ore | Redstone |
   | Lapis Lazuli | Lapis Ore / Deepslate Lapis Ore | Lapis Lazuli |
@@ -428,6 +429,23 @@ clients/REI.
   - `skippedOres` records ores it can neither see, path to nor dig towards, so it moves on
     instead of jamming; the list is cleared on every successful break and on feeding.
   - Removed the now-unused `findBlocker()`.
+- **1.13.0** — **Copper support + release folder.**
+  - **The Tainted Mould can now see and mine copper.** New `TaintedOreType.COPPER`: feed it a
+    **copper ingot** and it targets Copper Ore / Deepslate Copper Ore and collects **raw copper**.
+    Everything else — line of sight, the 5-block break radius, vein mining, the idle-message item
+    list — picks copper up automatically, because they all derive from the enum.
+  - **Fixed oversized-stack delivery.** `returnToOwner()` built one `ItemStack` with the entire
+    haul as its count. Multi-drop ores overshoot `STACK_SIZE` (copper drops 2-5 raw copper per
+    block, redstone 4-5, lapis 4-9), so the count could exceed the item's max stack size and the
+    excess was silently destroyed on delivery. The haul is now split into correctly-sized stacks,
+    each inserted individually and dropped on the floor only if the inventory is full. This was
+    reachable before copper, but copper makes it routine.
+  - **`latest/` folder** added at the repo root, always holding the current release jar plus a
+    short README. `releases/` still keeps the full version history.
+  - **`.gitignore` reordered.** The blanket `*.jar` rule sat *after* the `!releases/...`
+    whitelists and silently overrode them, so every release jar needed `git add -f`. The blanket
+    rule now comes first and the un-ignore rules follow it, matching `releases/*.jar` and
+    `latest/*.jar` by pattern so new versions no longer need per-file entries.
 
 ---
 

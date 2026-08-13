@@ -622,13 +622,25 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 		this.dataTracker.set(TELEPORT_DATA, (byte) 1);
 
 		// Deposit the haul into the owner's inventory (drop any overflow).
+		//
+		// The haul is split into properly-sized stacks rather than being handed over as one
+		// oversized ItemStack. Ores that drop more than one item per block (copper yields 2-5 raw
+		// copper, redstone 4-5, lapis 4-9) routinely push collectedCount past STACK_SIZE, and a
+		// single ItemStack built with a count above the item's max would be silently clamped,
+		// quietly destroying the excess.
 		int amount = Math.max(0, this.collectedCount);
 		if (amount > 0) {
-			ItemStack result = new ItemStack(this.oreType.result(), amount);
-			if (owner instanceof ServerPlayerEntity serverPlayer) {
-				if (!serverPlayer.getInventory().insertStack(result)) {
-					this.dropStack((ServerWorld) world, result);
+			int remaining = amount;
+			while (remaining > 0) {
+				ItemStack result = new ItemStack(this.oreType.result());
+				int give = Math.min(remaining, result.getMaxCount());
+				result.setCount(give);
+				remaining -= give;
+				if (owner instanceof ServerPlayerEntity serverPlayer
+						&& serverPlayer.getInventory().insertStack(result)) {
+					continue;
 				}
+				this.dropStack((ServerWorld) world, result);
 			}
 			this.notifyOwner("Delivered " + amount + " " + this.oreType.displayName() + "!");
 		}
