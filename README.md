@@ -114,8 +114,11 @@ guardian, and tainted gear. Built with **Yarn 1.21.11+build.6**, **Fabric Loader
 - Reinforce any armour piece in the **smithing table**: put the armour in the **base** slot and a
   **Tainted Shard** in the **addition** slot (no template needed). Or hold the shard + armour and
   right-click.
-- Reinforced armour gains a **one-hit shield** that blocks the next hit, then recharges over 15
-  seconds (faster with more reinforced pieces equipped).
+- Reinforced armour gains a **recharging shield** that completely blocks an incoming hit, no matter
+  how large, then goes on cooldown and recharges. It is not one-use — it keeps blocking for as long
+  as the armour is worn.
+- The cooldown is **15 seconds** with one reinforced piece equipped, reduced by **3 seconds for each
+  additional** piece: 15s / 12s / 9s / 6s for 1 / 2 / 3 / 4 pieces.
 - The armour's tooltip shows **"Reinforced with a Tainted Shard"**.
 
 ### Commands (operator/admin)
