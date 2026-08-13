@@ -467,6 +467,14 @@ clients/REI.
   aligned — the mould **model** was left untouched (only its texture changed), per request. Pure
   resource change, so this is a PATCH bump. `latest/` now points at 1.13.2.
 
+- **1.13.3** — **Fixed the Tainted Mould textures (1.13.2 placed them wrong).** The uploaded
+  `tainted_mould.png` is a 16×16 **2D item sprite** for the deploy item, not the 32×32 GeckoLib
+  entity texture. 1.13.2 wrongly overwrote the 3D entity texture with it (and upscaled it), so the
+  mould rendered with the wrong skin. Now: the 3D entity texture is **restored** to its original
+  32×32, and the 2D sprite is used correctly on the **spawn item** — `models/item/tainted_mould.json`
+  now points `layer0` at `item/tainted_mould` (previously it reused `item/mould_of_souls`). Pure
+  resource fix, so this is a PATCH bump. `latest/` now points at 1.13.3.
+
 ---
 
 ## 10. Where to continue

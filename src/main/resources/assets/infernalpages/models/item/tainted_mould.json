@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "infernalpages:item/mould_of_souls"
+    "layer0": "infernalpages:item/tainted_mould"
   }
 }
