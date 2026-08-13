@@ -4,7 +4,7 @@ A Fabric mod for **Minecraft 1.21.11** about **permanent death**, soul contracts
 guardian, and tainted gear. Built with **Yarn 1.21.11+build.6**, **Fabric Loader 0.19.3**,
 **Fabric API 0.141.6+1.21.11**, and **GeckoLib 5.4.5** for the animated guardian model.
 
-> Current version: **1.11.0** — see [`DEVELOPMENT_HANDOFF.md`](DEVELOPMENT_HANDOFF.md) for the full
+> Current version: **1.12.3** — see [`DEVELOPMENT_HANDOFF.md`](DEVELOPMENT_HANDOFF.md) for the full
 > architecture, file map, known issues, and how to continue development.
 
 ---
@@ -82,6 +82,41 @@ guardian, and tainted gear. Built with **Yarn 1.21.11+build.6**, **Fabric Loader
   - Shift-right-click to switch modes (model switches automatically).
   - **Cannot permanently kill players**. Enchancement-compatible (uses string as the material).
 - To obtain: smash a broken Sealer of Fates into **7 Tainted Shards**, then craft the weapon.
+- **2× in-hand model** — the sword/hoe now renders twice as large when held (a `display` transform
+  that doubles the hand scale without touching the texture resolution).
+
+### The Tainted Mould (mining automaton)
+- A mining automaton forged **shapelessly** from a **Mould of Souls + a Tainted Shard + 4 Netherite
+  Ingots**. Right-click a block to deploy it.
+- **Feed it an ore resource** to send it mining; it finds and breaks the nearest matching ore and
+  collects only that ore's drops (blocks it breaks while tunnelling are not picked up).
+  - Coal → Coal, Iron Ingot → Raw Iron, Gold Ingot → Raw Gold, Redstone → Redstone,
+    Lapis Lazuli → Lapis Lazuli, Diamond → Diamond, Emerald → Emerald, Netherite Ingot → Ancient Debris.
+- It **prefers exposed ores** and will tunnel through blocks to reach buried ones; if it can't safely
+  reach a target it picks a new one.
+- Once it holds a **full stack (64)** of the item it was sent for, it **teleports back to its owner**
+  and deposits the haul. The fed item counts as the first of the stack, so it only mines 63 more.
+- After returning it **stops and waits** for a new item.
+- **Shift-punch it** (owner, sneaking) to **stop it** — it drops its deploy item plus all collected
+  materials on the ground.
+- Uses its own mining-bot model + texture with **5 animations**: `static`, `scan`, `run`, `mine`,
+  and `teliport`. Soul moulds won't attack it.
+
+### The Sharpening Stone
+- Crafted **shaped** with 3 Tainted Shards (`AAA`) over any slabs (`BBB`, `#minecraft:slabs`).
+- Hold it with a weapon in your other hand and right-click to **sharpen** the weapon with a random
+  effect. Costs **3 experience levels**; use again to **reroll**.
+- Effects (weighted by rarity): Sharp at Range (+1.5 reach), Sharp When Close (1.5× damage within
+  1 block), Sharp With Speed (+1 dmg per block/s moving), Sharp as the Wind (+0.2 attack speed),
+  Perfectly Sharp (2× damage), Blunt (deals no damage).
+
+### Tainted-reinforced armour
+- Reinforce any armour piece in the **smithing table**: put the armour in the **base** slot and a
+  **Tainted Shard** in the **addition** slot (no template needed). Or hold the shard + armour and
+  right-click.
+- Reinforced armour gains a **one-hit shield** that blocks the next hit, then recharges over 15
+  seconds (faster with more reinforced pieces equipped).
+- The armour's tooltip shows **"Reinforced with a Tainted Shard"**.
 
 ### Commands (operator/admin)
 - `/setowner <player>` — sets the owner on the held contract item (Contract, Unholy Charm, or
@@ -125,4 +160,6 @@ Standard crafting recipes (see `data/infernalpages/recipe/`):
 - Mould of Souls (shaped)
 - Calling Horn (shapeless: goat horn + mould)
 - Tainted Remains (shards + string + stick + purity seal)
-- (Smithing reinforce recipe removed pending a safer implementation.)
+- Tainted Mould (shapeless: mould of souls + tainted shard + 4 netherite ingots)
+- Sharpening Stone (shaped: `AAA` / `BBB`, A = tainted shards, B = any slab)
+- Reinforced armour (smithing: any armour + tainted shard — custom `reinforce_armor_smithing` recipe)
