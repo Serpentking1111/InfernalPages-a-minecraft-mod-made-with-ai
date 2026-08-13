@@ -32,7 +32,9 @@ public class InfernalPagesClient implements ClientModInitializer {
 					if (Boolean.TRUE.equals(stack.get(net.infernalpages.registry.ModComponents.TAINTED))) {
 						lines.add(Text.literal("Reinforced with a Tainted Shard")
 								.formatted(Formatting.DARK_PURPLE));
-						lines.add(Text.literal("Blocks the next hit, then recharges over 15s")
+						lines.add(Text.literal("Blocks an incoming hit, then recharges")
+								.formatted(Formatting.DARK_GRAY));
+						lines.add(Text.literal("15s cooldown, -3s per extra reinforced piece")
 								.formatted(Formatting.DARK_GRAY));
 					}
 				});
