@@ -392,6 +392,18 @@ clients/REI.
   `cooldownTicks(int)`). Also fixed a **memory leak** — `LAST_BLOCKED` was never cleaned up on
   logout or death and grew for the server's lifetime; recharged entries are now pruned every 64
   blocks. Tooltip and README reworded, as both described the shield as one-use.
+- **1.12.5** — **Tainted Mould mining fixes.** (1) It kept **breaking blocks while playing the
+  "scan" animation**: the `searchCooldown` pause was checked only inside the "no valid target"
+  branch of `doMining()`, so once a target was held the mould carried on tunnelling during the
+  pause. The cooldown is now checked at the top of the mining step and stops navigation too, so
+  the scan pause is a real pause. (2) It **ignored the ore it was sent to collect**: `findBlocker()`
+  deliberately skips target-ore blocks, but ores generate in *veins*, so the blocks between the
+  mould and its target are usually more of the same ore — it tunnelled around its own vein instead
+  of mining it. Added `findAdjacentTargetOre()`, checked before `findBlocker()`, so reachable ore
+  is mined with `breakOre()` (drops collected). (3) `isBreakable()` now rejects blocks with a
+  **block entity**, so tunnelling no longer destroys chests, shulker boxes, spawners or furnaces
+  and their contents. (4) The idle message listed only 3 of the 8 accepted items; it is now
+  generated from `TaintedOreType` via `feedItemList()` so it cannot drift.
 
 ---
 

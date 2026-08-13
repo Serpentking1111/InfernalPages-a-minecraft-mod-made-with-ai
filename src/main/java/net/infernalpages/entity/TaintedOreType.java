@@ -74,6 +74,22 @@ public enum TaintedOreType {
 		return null;
 	}
 
+	/**
+	 * A human-readable list of every item the mould accepts, e.g. "an iron ingot, a gold ingot,
+	 * …". Built from the enum so it cannot drift out of date as ore types are added.
+	 */
+	public static String feedItemList() {
+		StringBuilder sb = new StringBuilder();
+		TaintedOreType[] all = values();
+		for (int i = 0; i < all.length; i++) {
+			if (i > 0) {
+				sb.append(i == all.length - 1 ? " or " : ", ");
+			}
+			sb.append(all[i].feedItem.getName().getString().toLowerCase(java.util.Locale.ROOT));
+		}
+		return sb.toString();
+	}
+
 	/** Finds an ore type by its enum name (used for NBT storage). */
 	public static TaintedOreType fromName(String name) {
 		for (TaintedOreType t : values()) {

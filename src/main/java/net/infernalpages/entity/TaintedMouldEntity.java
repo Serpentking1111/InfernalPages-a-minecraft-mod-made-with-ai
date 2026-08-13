@@ -32,7 +32,8 @@ import software.bernie.geckolib.animation.object.PlayState;
 /**
  * The Tainted Mould — a mining automaton forged from a Mould of Souls, a Tainted Shard and netherite.
  *
- * <p>Feed it an ore resource (iron ingot, diamond or netherite ingot) and it will travel to the
+ * <p>Feed it an ore resource (iron, gold, diamond, netherite, lapis, redstone, emerald or coal)
+ * and it will travel to the
  * nearest matching ore, mine it (preferring exposed ores and tunnelling through blocks to reach
  * buried ones), and collect only the ore's drops. Once it holds a full stack it teleports back to
  * its owner and deposits the haul. It is animated by the custom {@code taintedmould} model/animations
@@ -156,8 +157,8 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 					+ collectedCount + "/" + STACK_SIZE + " collected.")
 					.formatted(Formatting.DARK_PURPLE), true);
 		} else {
-			player.sendMessage(Text.literal("Tainted Mould is idle. Feed it an ore "
-					+ "(iron ingot, diamond, or netherite ingot) to send it mining.")
+			player.sendMessage(Text.literal("Tainted Mould is idle. Feed it "
+					+ TaintedOreType.feedItemList() + " to send it mining.")
 					.formatted(Formatting.DARK_PURPLE), true);
 		}
 		return ActionResult.SUCCESS_SERVER;
@@ -201,14 +202,17 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 			this.returnToOwner();
 			return;
 		}
+		// After mining an ore the mould stands still and plays the "scan" animation. Hold off on
+		// ALL mining work — including tunnelling — until that pause is over, otherwise the mould
+		// keeps chewing through blocks while it visibly appears to be scanning.
+		if (this.searchCooldown > 0) {
+			this.searchCooldown--;
+			this.getNavigation().stop();
+			return;
+		}
+
 		// (Re)acquire a target ore if we don't have a valid one.
 		if (this.targetOre == null || !isTargetOre(this.targetOre)) {
-			// After mining an ore, pause and scan before picking the next target so the "scan"
-			// animation gets a chance to play.
-			if (this.searchCooldown > 0) {
-				this.searchCooldown--;
-				return;
-			}
 			this.reselectOre();
 			if (this.targetOre == null) {
 				this.notifyOwner("No " + this.oreType.displayName() + " found within "
@@ -223,6 +227,19 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 		if (canReach(this.targetOre)) {
 			this.breakOre(this.targetOre);
 			this.targetOre = null;
+			return;
+		}
+
+		// Ores generate in veins, so the blocks between us and the target are very often more of
+		// the same ore. Mine those properly (collecting their drops) instead of treating them as
+		// obstacles — findBlocker deliberately refuses to touch them, which previously left the
+		// mould tunnelling around its own vein and never picking up the ore it was set to.
+		BlockPos adjacentOre = findAdjacentTargetOre();
+		if (adjacentOre != null) {
+			this.breakOre(adjacentOre);
+			if (adjacentOre.equals(this.targetOre)) {
+				this.targetOre = null;
+			}
 			return;
 		}
 
@@ -280,6 +297,37 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 		return dx * dx + dy * dy + dz * dz <= REACH * REACH;
 	}
 
+	/**
+	 * Finds a target-ore block within reach, nearest to the current ore target. Used so the mould
+	 * harvests the rest of a vein it is standing in rather than tunnelling past it.
+	 */
+	private BlockPos findAdjacentTargetOre() {
+		if (this.oreType == null) {
+			return null;
+		}
+		World world = this.getEntityWorld();
+		BlockPos mouldPos = this.getBlockPos();
+		BlockPos.Mutable mutable = new BlockPos.Mutable();
+		BlockPos best = null;
+		double bestD = Double.MAX_VALUE;
+		for (int dx = -2; dx <= 2; dx++) {
+			for (int dy = -2; dy <= 2; dy++) {
+				for (int dz = -2; dz <= 2; dz++) {
+					mutable.set(mouldPos.getX() + dx, mouldPos.getY() + dy, mouldPos.getZ() + dz);
+					if (!canReach(mutable) || !this.oreType.isOre(world.getBlockState(mutable))) {
+						continue;
+					}
+					double d = squaredDistanceToOre(mutable);
+					if (d < bestD) {
+						bestD = d;
+						best = mutable.toImmutable();
+					}
+				}
+			}
+		}
+		return best;
+	}
+
 	/** Finds a solid, breakable, non-ore block within reach that is nearest the current ore target. */
 	private BlockPos findBlocker() {
 		if (this.targetOre == null) {
@@ -315,10 +363,16 @@ public class TaintedMouldEntity extends PathAwareEntity implements GeoEntity {
 		return best;
 	}
 
-	/** Whether the block state is hard enough to break (not bedrock/barrier/fluid). */
+	/**
+	 * Whether the block state may be tunnelled through. Rejects unbreakable blocks (bedrock,
+	 * barrier) and fluids, and additionally protects anything with a block entity — chests,
+	 * shulker boxes, spawners, furnaces and the like — which the mould would otherwise silently
+	 * destroy along with their contents while digging.
+	 */
 	private boolean isBreakable(BlockState state, BlockPos pos) {
 		return state.getHardness(this.getEntityWorld(), pos) >= 0.0f
-				&& state.getFluidState().isEmpty();
+				&& state.getFluidState().isEmpty()
+				&& !state.hasBlockEntity();
 	}
 
 	/** True if the block at {@code pos} is currently one of the target ore blocks. */
