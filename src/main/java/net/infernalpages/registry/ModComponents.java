@@ -2,6 +2,7 @@ package net.infernalpages.registry;
 
 import com.mojang.serialization.Codec;
 import net.minecraft.component.ComponentType;
+import net.minecraft.component.type.ItemEnchantmentsComponent;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.codec.PacketCodecs;
@@ -74,6 +75,18 @@ public final class ModComponents {
 	/** The current sharpening effect on a weapon (a {@code Sharpening} id), or null if unsharpened. */
 	public static final ComponentType<String> SHARPENING = register(
 			"sharpening", Codec.STRING, PacketCodecs.STRING);
+
+	/**
+	 * Snapshot of a weapon's enchantments taken <em>before</em> a BLUNT sharpening wiped them, so
+	 * {@link net.infernalpages.item.Sharpening#applyToStack} can put them back when the player
+	 * rerolls away from BLUNT.
+	 *
+	 * <p>Set only when BLUNT is applied to a weapon that still has enchantments; cleared the
+	 * moment the weapon leaves BLUNT. Invariant: SAVED_ENCHANTMENTS is set iff the weapon is
+	 * currently BLUNT and has at least one enchantment to restore later.
+	 */
+	public static final ComponentType<ItemEnchantmentsComponent> SAVED_ENCHANTMENTS = register(
+			"saved_enchantments", ItemEnchantmentsComponent.CODEC, ItemEnchantmentsComponent.PACKET_CODEC);
 
 	private ModComponents() {
 	}

@@ -5,7 +5,7 @@ This document is the complete technical handoff for the **Infernal Pages** Fabri
 original conversation context.
 
 **Project root:** the directory this file lives in.
-**Version:** 1.13.5 — Minecraft **1.21.11**, Yarn **1.21.11+build.6**, Fabric Loader **0.19.3**,
+**Version:** 1.13.7 — Minecraft **1.21.11**, Yarn **1.21.11+build.6**, Fabric Loader **0.19.3**,
 Fabric API **0.141.6+1.21.11**, Java **21**, GeckoLib **5.4.5**.
 
 ---
