@@ -16,8 +16,14 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
  * <ul>
  *   <li>{@code CLOSE} — 1.5× damage when the target is within 1 block.</li>
  *   <li>{@code SPEED} — +1 damage per block/s the attacker is moving.</li>
- *   <li>{@code BLUNT} — the weapon deals no damage.</li>
  * </ul>
+ *
+ * <p>Static effects (RANGE, WIND, PERFECT, BLUNT) are applied as item attribute modifiers in
+ * {@link Sharpening#applyToStack}. BLUNT in particular is {@code -1.0 ADD_MULTIPLIED_TOTAL} on
+ * {@link net.minecraft.entity.attribute.EntityAttributes#ATTACK_DAMAGE} — the exact inverse of
+ * PERFECT — which drives the weapon's attack damage attribute to 0 so the tooltip, attack-speed
+ * math and reroll-stripping all read correctly. ≤1.13.5 instead zeroed damage in this mixin at
+ * damage time (the tooltip still showed full attack damage).
  */
 @Mixin(LivingEntity.class)
 public abstract class SharpeningDamageMixin {
@@ -43,7 +49,6 @@ public abstract class SharpeningDamageMixin {
 				// +1 damage per block/s the player is moving (getVelocity is blocks/tick).
 				amount += player.getVelocity().horizontalLength() * 20.0f;
 			}
-			case BLUNT -> amount = 0.0f;
 			default -> { }
 		}
 		return amount;

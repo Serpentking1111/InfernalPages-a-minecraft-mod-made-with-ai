@@ -499,6 +499,22 @@ clients/REI.
   inside it must be replaced. Pure resource tweak, so this is a PATCH bump. `latest/` now points at
   1.13.5.
 
+- **1.13.6** — **BLUNT sharpening now actually zeroes the weapon's attack-damage attribute.** Until
+  1.13.5, BLUNT was patched in at damage time inside `SharpeningDamageMixin`
+  (`case BLUNT -> amount = 0.0f;`), which kept the weapon's `ATTACK_DAMAGE` attribute at its full
+  value so the tooltip lied (`"+15 Attack Damage"` on a BLUNT-ed netherite sword) and the
+  reroll-strip code in `Sharpening.withoutSharpening` had no `sharp_blunt` modifier id to remove
+  when rolling on top of an existing BLUNT. From 1.13.6 BLUNT is a real
+  `ATTACK_DAMAGE` attribute modifier: `EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL`
+  with value `-1.0`, which (being the exact inverse of PERFECT's `+1.0` `ADD_MULTIPLIED_TOTAL`)
+  drives the running attack-damage total to 0 for any weapon — the tooltip now reads `0 Attack
+  Damage`, the value flows through the normal attribute pipeline (same as RANGE / WIND / PERFECT),
+  and the new `sharp_blunt` modifier id is correctly stripped when rerolling away. The corresponding
+  `case BLUNT -> amount = 0.0f` line has been removed from `SharpeningDamageMixin`, which now only
+  handles the genuinely dynamic effects (`CLOSE` and `SPEED`). Same .gitignore / four-file version
+  bump convention; no model / texture / data changes. PATCH bump per §11. `latest/` now points at
+  1.13.6.
+
 ---
 
 ## 10. Where to continue

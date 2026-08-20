@@ -21,8 +21,8 @@ import java.util.List;
  *
  * <p>Each sharpening has a weight (rarity). {@link #roll} picks one weighted at random. Effects are
  * stored on the weapon's {@link ModComponents#SHARPENING} component. Static effects
- * (RANGE/WIND/PERFECT) are applied as item attribute modifiers; the conditional effects
- * (CLOSE/SPEED/BLUNT) are applied at damage time in {@code SharpeningDamageMixin}.
+ * (RANGE/WIND/PERFECT/BLUNT) are applied as item attribute modifiers; the conditional effects
+ * (CLOSE/SPEED) are applied at damage time in {@code SharpeningDamageMixin}.
  */
 public enum Sharpening {
 	NONE("none", "None", 0),
@@ -134,7 +134,7 @@ public enum Sharpening {
 		return switch (this) {
 			case RANGE -> EntityAttributes.ENTITY_INTERACTION_RANGE;
 			case WIND -> EntityAttributes.ATTACK_SPEED;
-			case PERFECT -> EntityAttributes.ATTACK_DAMAGE;
+			case PERFECT, BLUNT -> EntityAttributes.ATTACK_DAMAGE;
 			default -> null;
 		};
 	}
@@ -146,6 +146,13 @@ public enum Sharpening {
 			case WIND -> new EntityAttributeModifier(modifierId(), 0.2, EntityAttributeModifier.Operation.ADD_VALUE);
 			// Adds +100% of the total → doubles the final attack damage.
 			case PERFECT -> new EntityAttributeModifier(modifierId(), 1.0, EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
+			// Adds -100% of the total → zeroes the final attack damage regardless of the weapon's
+			// base value. Mathematically the exact inverse of PERFECT, using the same
+			// ADD_MULTIPLIED_TOTAL machinery so the result goes through the normal attribute
+			// pipeline (tooltip, attack-strength, etc.). ≤1.13.5 patched this in at damage time in
+			// SharpeningDamageMixin, which made the tooltip lie (still showed the weapon's full
+			// attack damage) and bypassed reroll-stripping; both are fixed in 1.13.6.
+			case BLUNT -> new EntityAttributeModifier(modifierId(), -1.0, EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
 			default -> null;
 		};
 	}
@@ -156,6 +163,7 @@ public enum Sharpening {
 			case RANGE -> Identifier.of(InfernalPagesMod.MOD_ID, "sharp_range");
 			case WIND -> Identifier.of(InfernalPagesMod.MOD_ID, "sharp_wind");
 			case PERFECT -> Identifier.of(InfernalPagesMod.MOD_ID, "sharp_perfect");
+			case BLUNT -> Identifier.of(InfernalPagesMod.MOD_ID, "sharp_blunt");
 			default -> null;
 		};
 	}
