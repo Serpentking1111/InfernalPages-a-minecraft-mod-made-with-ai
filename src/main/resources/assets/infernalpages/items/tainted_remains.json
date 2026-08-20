@@ -3,10 +3,6 @@
     "type": "minecraft:range_dispatch",
     "property": "custom_model_data",
     "scale": 1.0,
-    "fallback": {
-      "type": "minecraft:model",
-      "model": "infernalpages:item/tainted_remains_sword"
-    },
     "entries": [
       {
         "threshold": 1.0,
@@ -15,6 +11,28 @@
           "model": "infernalpages:item/tainted_remains_hoe"
         }
       }
-    ]
+    ],
+    "fallback": {
+      "type": "minecraft:select",
+      "property": "minecraft:display_context",
+      "cases": [
+        {
+          "when": [
+            "gui",
+            "ground",
+            "fixed",
+            "on_shelf"
+          ],
+          "model": {
+            "type": "minecraft:model",
+            "model": "infernalpages:item/tainted_remains_sword_small"
+          }
+        }
+      ],
+      "fallback": {
+        "type": "minecraft:model",
+        "model": "infernalpages:item/tainted_remains_sword"
+      }
+    }
   }
 }

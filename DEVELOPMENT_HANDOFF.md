@@ -5,7 +5,7 @@ This document is the complete technical handoff for the **Infernal Pages** Fabri
 original conversation context.
 
 **Project root:** the directory this file lives in.
-**Version:** 1.9.9 — Minecraft **1.21.11**, Yarn **1.21.11+build.6**, Fabric Loader **0.19.3**,
+**Version:** 1.13.5 — Minecraft **1.21.11**, Yarn **1.21.11+build.6**, Fabric Loader **0.19.3**,
 Fabric API **0.141.6+1.21.11**, Java **21**, GeckoLib **5.4.5**.
 
 ---
@@ -486,6 +486,18 @@ clients/REI.
   11×11×11 scan, keeping the per-tick detection cheap while standing in a vein. Also swapped in the
   updated `contract_sword.png` (a new 32×32 sprite for the Sealer of Fates). Pure perf/AI +
   resource change, no behaviour change, so this is a PATCH bump. `latest/` now points at 1.13.4.
+
+- **1.13.5** — **16×16 inventory mini-icons for the Sealer of Fates + The Remains of a Tainted Past
+  (sword mode), in-hand model unchanged.** The two swords now show user-supplied 16×16 sprites in
+  `gui` / `ground` / `fixed` / `on_shelf` display contexts — matching how a regular item icon looks
+  in the inventory — while every held-in-hand context (third-person, first-person, both hands)
+  keeps the existing **2×-scaled Blockbench model** so the weapons still look large when equipped.
+  Implemented with `minecraft:select` on `minecraft:display_context` in
+  `items/contract_sword.json` and (nested inside the existing `custom_model_data` dispatch) in
+  `items/tainted_remains.json`, the same proven pattern Reap uses for its scythe. No code change,
+  no model change, no class file change — the bytecode jar is rebuilt only because the assets
+  inside it must be replaced. Pure resource tweak, so this is a PATCH bump. `latest/` now points at
+  1.13.5.
 
 ---
 
