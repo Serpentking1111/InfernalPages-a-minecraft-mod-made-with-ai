@@ -19,10 +19,15 @@ import java.util.List;
 /**
  * A random effect applied to a weapon by the Sharpening Stone.
  *
- * <p>Each sharpening has a weight (rarity). {@link #roll} picks one weighted at random. Effects are
- * stored on the weapon's {@link ModComponents#SHARPENING} component. Static effects
+ * <p>Each sharpening has a weight (rarity). {@link #roll} picks one weighted at random. Effects
+ * are stored on the weapon's {@link ModComponents#SHARPENING} component. Static effects
  * (RANGE/WIND/PERFECT/BLUNT) are applied as item attribute modifiers; the conditional effects
  * (CLOSE/SPEED) are applied at damage time in {@code SharpeningDamageMixin}.
+ *
+ * <p>BLUNT additionally wipes the weapon's enchantments on entry and snapshots them in
+ * {@link ModComponents#SAVED_ENCHANTMENTS}; {@link #applyToStack} restores them when the
+ * player rerolls away from BLUNT, and replays the snapshot / wipe cycle for BLUNT → BLUNT, so
+ * BLUNT does not permanently destroy enchantments across multiple bad rolls.
  */
 public enum Sharpening {
 	NONE("none", "None", 0),
@@ -84,23 +89,56 @@ public enum Sharpening {
 
 	/** Applies this sharpening to the weapon's attribute modifiers and stores it on the stack. */
 	public void applyToStack(ItemStack stack) {
+		// Resolve the previously-applied sharpening up-front so we can choreograph the BLUNT
+		// enchantment snapshot/restore transitions correctly regardless of which direction we
+		// are rolling (RANGE → BLUNT, BLUNT → BLUNT, BLUNT → PERFECT, etc).
+		Sharpening previous = fromStack(stack);
+
+		// Strip the previous sharpening's attribute modifier.
 		AttributeModifiersComponent base = stack.get(DataComponentTypes.ATTRIBUTE_MODIFIERS);
 		if (base == null) {
 			AttributeModifiersComponent itemComp =
 					stack.getItem().getComponents().get(DataComponentTypes.ATTRIBUTE_MODIFIERS);
 			base = itemComp != null ? itemComp : AttributeModifiersComponent.DEFAULT;
 		}
-
-		// Remove any previously-applied sharpening modifier.
 		AttributeModifiersComponent result = withoutSharpening(base);
 
-		EntityAttributeModifier modifier = modifier();
-		if (modifier != null) {
-			result = result.with(attribute(), modifier, AttributeModifierSlot.MAINHAND);
+		// If we are leaving BLUNT this call, hand back any enchantments the weapon had before
+		// BLUNT wiped them — regardless of which non-BLUNT effect replaced it. The snapshot is
+		// always cleared, even when the stored backup is empty, to keep the invariant that
+		// "SAVED_ENCHANTMENTS is set iff the weapon is currently BLUNT-and-not-yet-restored".
+		// BLUNT → BLUNT hits this branch first (restoring the previewed enchantments), then
+		// the BLUNT-entry branch below re-snapshots from the just-restored set — idempotent.
+		if (previous == BLUNT && stack.contains(ModComponents.SAVED_ENCHANTMENTS)) {
+			ItemEnchantments saved = stack.get(ModComponents.SAVED_ENCHANTMENTS);
+			if (saved != null && !saved.isEmpty()) {
+				stack.set(DataComponentTypes.ENCHANTMENTS, saved);
+			} else {
+				stack.remove(DataComponentTypes.ENCHANTMENTS);
+			}
+			stack.remove(ModComponents.SAVED_ENCHANTMENTS);
 		}
 
+		// Apply the new sharpening's attribute modifier.
+		EntityAttributeModifier modifier = modifier();
+		if (modifier != null && attribute() != null) {
+			result = result.with(attribute(), modifier, AttributeModifierSlot.MAINHAND);
+		}
 		stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS, result);
 		stack.set(ModComponents.SHARPENING, id);
+
+		// If we are entering BLUNT this call, snapshot the weapon's current enchantments and
+		// wipe the slot. Only write SAVED_ENCHANTMENTS if there's actually something to backup
+		// (avoid filling it with an empty record on a freshly-rolled BLUNT that was never
+		// previously enchanted). Either way, drop ENCHANTMENTS while BLUNT is active so the
+		// held weapon does not keep Fire Aspect / Sharpness / Looting etc.
+		if (this == BLUNT) {
+			ItemEnchantments existing = stack.get(DataComponentTypes.ENCHANTMENTS);
+			if (existing != null && !existing.isEmpty()) {
+				stack.set(ModComponents.SAVED_ENCHANTMENTS, existing);
+			}
+			stack.remove(DataComponentTypes.ENCHANTMENTS);
+		}
 	}
 
 	/** Removes all sharpening attribute modifiers from the given component (keeps everything else). */
@@ -152,6 +190,9 @@ public enum Sharpening {
 			// pipeline (tooltip, attack-strength, etc.). ≤1.13.5 patched this in at damage time in
 			// SharpeningDamageMixin, which made the tooltip lie (still showed the weapon's full
 			// attack damage) and bypassed reroll-stripping; both are fixed in 1.13.6.
+			//
+			// As of 1.13.7 BLUNT additionally strips the weapon's enchantments on apply and
+			// restores them on reroll-away-from-BLUNT — see {@link #applyToStack(ItemStack)}.
 			case BLUNT -> new EntityAttributeModifier(modifierId(), -1.0, EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
 			default -> null;
 		};
